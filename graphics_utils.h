@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <math.h>
 #include "SDL/SDL.h"
 #include "GL/gl.h"
 #include "GL/glu.h"
@@ -13,6 +14,13 @@ typedef struct{
 	float shininess;
 } MaterialProperties;
 
+typedef struct{
+	double x;
+	double y;
+	double z;
+} vec3;
+
+void normalize(vec3 *v);
 void set_material_properties(MaterialProperties props);
 void check_error_at(const char *location);
 void throw_error(const char *format, ...);

@@ -1,4 +1,3 @@
-#include <math.h>
 #include "graphics_utils.h"
 
 #define PI 3.14159265358979323
@@ -12,10 +11,10 @@ char running;
 double ar = 1.0;
 double dim = 50.0;
 
-double th = 0.0;
-double ph = 0.0;
+double th = 0.01;
+double ph = 0.01;
 
-unsigned char keypress_frequency = 200; // milliseconds
+unsigned char keypress_period = 200; // milliseconds
 
 void project(){
 	glMatrixMode(GL_PROJECTION);
@@ -60,23 +59,70 @@ void draw_torus(double R, double r){
 	glPopMatrix();
 }
 
+vec3 draw_curve(vec3 pos, vec3 forward1, vec3 forward2, double speed, unsigned int num_steps){
+	vec3 df = {forward2.x - forward1.x, forward2.y - forward1.y, forward2.z - forward1.z};
+
+	glBegin(GL_LINE_STRIP);
+	vec3 current_forward = {forward1.x, forward1.y, forward1.z};
+	glVertex3d(pos.x, pos.y, pos.z);
+	for(double t = 0.0; t < 1.0; t += 1.0 / num_steps){
+		current_forward.x = forward1.x + (df.x * t);
+		current_forward.y = forward1.y + (df.y * t);
+		current_forward.z = forward1.z + (df.z * t);
+		normalize(&current_forward);
+
+		pos.x += current_forward.x * speed;
+		pos.y += current_forward.y * speed;
+		pos.z += current_forward.z * speed;
+
+		glVertex3d(pos.x, pos.y, pos.z);
+	}
+	glEnd();
+	
+	return pos;
+}
+
 void display(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
 
 	glLoadIdentity();
 
 	gluLookAt(-(2 * dim) * sin_deg(th) * cos_deg(ph), (2 * dim) * sin_deg(ph), (2 * dim) * cos_deg(th) * cos_deg(ph),
 		      0, 0, 0,
 		      0, cos_deg(ph), 0);
-	check_error_at("gluLookAt");
 
+	// Lighting
+	float ambient[]  = {0.8, 0.8, 0.8, 1.0};
+	float diffuse[]  = {0.7, 0.7, 0.7, 1.0};
+	float specular[] = {0.2, 0.2, 0.2, 1.0};
+	float position[] = {0.0, 0.0, 0.0, 1.0};
+
+	glEnable(GL_NORMALIZE);
+	glEnable(GL_LIGHTING);
+	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
+	glEnable(GL_LIGHT0);
+
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
+
+	// Draw Objects
 	glColor3d(1, 1, 1);
 
 	glPushMatrix();
-	glRotated(45, 1, 1, 0);
-	draw_torus(30, 5);
+	vec3 startPos = {1, 1, 1};
+	vec3 facing1 = {1, 0, 0};
+	vec3 facing2 = {0, 1, 1};
+	vec3 facing3 = {-1, -1, -1};
+	vec3 newPos = draw_curve(startPos, facing1, facing2, 5, 10);
+	draw_curve(newPos, facing2, facing3, 1.25, 5);
 	glPopMatrix();
+
+	// Unlit Objects
+	glDisable(GL_LIGHTING);
 
 	draw_axes();
 
@@ -89,18 +135,22 @@ void handle_keypress(){
 	if(keys[SDLK_ESCAPE]){
 		running = 0;
 	}
-	else if(keys[SDLK_UP]){
+	if(keys[SDLK_UP]){
 		ph += 5;
 	}
-	else if(keys[SDLK_DOWN]){
+	if(keys[SDLK_DOWN]){
 		ph -= 5;
 	}
-	else if(keys[SDLK_LEFT]){
+	if(keys[SDLK_LEFT]){
 		th += 5;
 	}
-	else if(keys[SDLK_RIGHT]){
+	if(keys[SDLK_RIGHT]){
 		th -= 5;
 	}
+
+	th = fmod(th, 360.0);
+	ph = ph > 90 ? 89.9 : ph;
+	ph = ph < -90 ? -89.9 : ph;
 	project();
 }
 
@@ -114,19 +164,20 @@ void init(){
 		throw_error("Failed to set video mode\n");
 	}
 
-	reshape(screen->w, screen->h);
-
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+
+	reshape(screen->w, screen->h);
 }
 
 void main_loop(){
-	project();
+	double t = 0;
+	double tp = 0;
 	while(running){
-		double dt = SDL_GetTicks();
+		t = SDL_GetTicks();
 
 		SDL_Event event;
 		while(SDL_PollEvent(&event)){
@@ -140,8 +191,14 @@ void main_loop(){
 					break;
 				case SDL_KEYDOWN:
 					handle_keypress();
+					tp = t + 500;
 					break;
 			}
+		}
+
+		if(t - tp < keypress_period){
+			handle_keypress();
+			tp = t;
 		}
 
 		display();
