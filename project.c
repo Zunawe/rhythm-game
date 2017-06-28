@@ -59,27 +59,29 @@ void draw_torus(double R, double r){
 	glPopMatrix();
 }
 
-vec3 draw_curve(vec3 pos, vec3 forward1, vec3 forward2, double speed, unsigned int num_steps){
-	vec3 df = {forward2.x - forward1.x, forward2.y - forward1.y, forward2.z - forward1.z};
+void draw_curve(vec3 *pathInfo, vec3 final_direction, double speed, unsigned int num_steps){
+	vec3 df = {final_direction.x - pathInfo[1].x, final_direction.y - pathInfo[1].y, final_direction.z - pathInfo[1].z};
 
 	glBegin(GL_LINE_STRIP);
-	vec3 current_forward = {forward1.x, forward1.y, forward1.z};
-	glVertex3d(pos.x, pos.y, pos.z);
+	vec3 current_forward = {pathInfo[1].x, pathInfo[1].y, pathInfo[1].z};
+	glVertex3d(pathInfo[0].x, pathInfo[0].y, pathInfo[0].z);
 	for(double t = 0.0; t < 1.0; t += 1.0 / num_steps){
-		current_forward.x = forward1.x + (df.x * t);
-		current_forward.y = forward1.y + (df.y * t);
-		current_forward.z = forward1.z + (df.z * t);
+		current_forward.x = pathInfo[1].x + (df.x * t);
+		current_forward.y = pathInfo[1].y + (df.y * t);
+		current_forward.z = pathInfo[1].z + (df.z * t);
 		normalize(&current_forward);
 
-		pos.x += current_forward.x * speed;
-		pos.y += current_forward.y * speed;
-		pos.z += current_forward.z * speed;
+		pathInfo[0].x += current_forward.x * speed;
+		pathInfo[0].y += current_forward.y * speed;
+		pathInfo[0].z += current_forward.z * speed;
 
-		glVertex3d(pos.x, pos.y, pos.z);
+		glVertex3d(pathInfo[0].x, pathInfo[0].y, pathInfo[0].z);
 	}
 	glEnd();
 	
-	return pos;
+	pathInfo[1].x = current_forward.x;
+	pathInfo[1].y = current_forward.y;
+	pathInfo[1].z = current_forward.z;
 }
 
 void display(){
@@ -113,12 +115,13 @@ void display(){
 	glColor3d(1, 1, 1);
 
 	glPushMatrix();
-	vec3 startPos = {1, 1, 1};
-	vec3 facing1 = {1, 0, 0};
-	vec3 facing2 = {0, 1, 1};
-	vec3 facing3 = {-1, -1, -1};
-	vec3 newPos = draw_curve(startPos, facing1, facing2, 5, 10);
-	draw_curve(newPos, facing2, facing3, 1.25, 5);
+	vec3 pos = {0, 0, 0};
+	vec3 forward = {1, 0, 0};
+	vec3 pathInfo[2] = {pos, forward};
+	for(int i = 0; i < 10; ++i){
+		vec3 nextForward = {sin(i), cos(i / 2), tan(i)};
+		draw_curve(pathInfo, nextForward, 1, 10);
+	}
 	glPopMatrix();
 
 	// Unlit Objects

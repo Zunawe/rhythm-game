@@ -32,3 +32,6 @@ graphics_utils.o: graphics_utils.c graphics_utils.h
 
 clean:
 	$(CLEAN)
+
+zip:
+	zip project.zip $(EXE).c graphics_utils.c Makefile README
