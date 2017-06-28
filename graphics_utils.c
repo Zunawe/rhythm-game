@@ -7,6 +7,13 @@ void set_material_properties(MaterialProperties props){
 	glMaterialf(GL_FRONT, GL_SHININESS, props.shininess);
 }
 
+void check_error_at(const char *location){
+	int error = glGetError();
+	if(error){
+		fprintf(stderr, "ERROR: %s [%s]\n", gluErrorString(error), location);
+	}
+}
+
 void throw_error(const char *format, ...){
 	va_list args;
 	va_start(args, format);

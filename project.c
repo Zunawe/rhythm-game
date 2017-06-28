@@ -12,14 +12,16 @@ char running;
 double ar = 1.0;
 double dim = 50.0;
 
-double th = -90.0;
-double ph = 90.0;
+double th = 0.0;
+double ph = 0.0;
+
+unsigned char keypress_frequency = 200; // milliseconds
 
 void project(){
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	//gluPerspective(55, ar, dim / 4, 4 * dim);
-	glOrtho(-ar*dim,ar*dim,-dim,+dim,-dim,+dim);
+	gluPerspective(55, ar, dim / 16, 16 * dim);
+//	glOrtho(-(dim * ar), dim * ar, -dim, dim, -dim, dim);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
@@ -28,6 +30,17 @@ void reshape(int width, int height){
 	ar = height > 0 ? (double)width / (double)height : 1;
 	glViewport(0, 0, width, height);
 	project();
+}
+
+void draw_axes(){
+	glBegin(GL_LINES);
+	glVertex3d(0, 0, 0);
+	glVertex3d(dim / 2, 0, 0);
+	glVertex3d(0, 0, 0);
+	glVertex3d(0, dim / 2, 0);
+	glVertex3d(0, 0, 0);
+	glVertex3d(0, 0, dim / 2);
+	glEnd();
 }
 
 void draw_torus(double R, double r){
@@ -53,27 +66,42 @@ void display(){
 
 	glLoadIdentity();
 
-//	gluLookAt(-(2 * dim) * sin_deg(th) * cos_deg(ph), (2 * dim) * sin_deg(ph), (2 * dim) * cos_deg(th) * cos_deg(ph),
-//		      0, 0, 0,
-//		      0, cos_deg(ph), 0);
+	gluLookAt(-(2 * dim) * sin_deg(th) * cos_deg(ph), (2 * dim) * sin_deg(ph), (2 * dim) * cos_deg(th) * cos_deg(ph),
+		      0, 0, 0,
+		      0, cos_deg(ph), 0);
+	check_error_at("gluLookAt");
 
 	glColor3d(1, 1, 1);
 
 	glPushMatrix();
-	//draw_torus(10, 5);
+	glRotated(45, 1, 1, 0);
+	draw_torus(30, 5);
 	glPopMatrix();
 
-	glPushMatrix();
-	glBegin(GL_QUADS);
-		glColor3f(1, 0, 0);		glVertex2d(0, 0);
-        glColor3f(1, 1, 0);		glVertex2d(0.5, 0);
-        glColor3f(1, 0, 1);		glVertex2d(0.5, 0.5);
-        glColor3f(1, 1, 1);		glVertex2d(0, 0.5);
-	glEnd();
-	glPopMatrix();
+	draw_axes();
 
 	glFlush();
 	SDL_GL_SwapBuffers();
+}
+
+void handle_keypress(){
+	Uint8* keys = SDL_GetKeyState(NULL);
+	if(keys[SDLK_ESCAPE]){
+		running = 0;
+	}
+	else if(keys[SDLK_UP]){
+		ph += 5;
+	}
+	else if(keys[SDLK_DOWN]){
+		ph -= 5;
+	}
+	else if(keys[SDLK_LEFT]){
+		th += 5;
+	}
+	else if(keys[SDLK_RIGHT]){
+		th -= 5;
+	}
+	project();
 }
 
 void init(){
@@ -81,7 +109,7 @@ void init(){
 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	screen = SDL_SetVideoMode(512, 512, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
+	screen = SDL_SetVideoMode(1024, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
 	if(!screen){
 		throw_error("Failed to set video mode\n");
 	}
@@ -96,6 +124,7 @@ void init(){
 }
 
 void main_loop(){
+	project();
 	while(running){
 		double dt = SDL_GetTicks();
 
@@ -103,11 +132,14 @@ void main_loop(){
 		while(SDL_PollEvent(&event)){
 			switch(event.type){
 				case SDL_VIDEORESIZE:
+					screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
+					reshape(screen->w, screen->h);
 					break;
 				case SDL_QUIT:
 					running = 0;
 					break;
 				case SDL_KEYDOWN:
+					handle_keypress();
 					break;
 			}
 		}

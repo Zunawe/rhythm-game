@@ -14,6 +14,7 @@ typedef struct{
 } MaterialProperties;
 
 void set_material_properties(MaterialProperties props);
+void check_error_at(const char *location);
 void throw_error(const char *format, ...);
 void reverse_bytes(void* x, const int n);
 unsigned int load_texture(const char* file);
