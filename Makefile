@@ -21,17 +21,18 @@ CLEAN = rm -f *.o $(EXE)
 endif
 endif
 
-$(EXE): $(EXE).o graphics_utils.o
+$(EXE): $(EXE).o graphics_utils.o vector3.o
 	gcc -o $@ $^ $(CFLAGS) $(SDL_CFLAGS) $(LIBS) $(SDL_LIBS)
 	
 .c.o:
 	gcc -c $(CFLAGS) $(SDL_CFLAGS) $<
 
-$(EXE).o: $(EXE).c graphics_utils.h
+$(EXE).o: $(EXE).c graphics_utils.h vector3.h
 graphics_utils.o: graphics_utils.c graphics_utils.h
+vector3.o: vector3.c vector3.h
 
 clean:
 	$(CLEAN)
 
 zip:
-	zip project.zip $(EXE).c graphics_utils.c Makefile README
+	zip project.zip $(EXE).c graphics_utils.* vector3.* Makefile README

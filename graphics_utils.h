@@ -14,13 +14,6 @@ typedef struct{
 	float shininess;
 } MaterialProperties;
 
-typedef struct{
-	double x;
-	double y;
-	double z;
-} vec3;
-
-void normalize(vec3 *v);
 void set_material_properties(MaterialProperties props);
 void check_error_at(const char *location);
 void throw_error(const char *format, ...);
