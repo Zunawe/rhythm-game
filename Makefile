@@ -21,18 +21,26 @@ CLEAN = rm -f *.o $(EXE)
 endif
 endif
 
-$(EXE): $(EXE).o graphics_utils.o vector3.o
+$(EXE): $(EXE).o graphics_utils.a
 	gcc -o $@ $^ $(CFLAGS) $(SDL_CFLAGS) $(LIBS) $(SDL_LIBS)
 	
 .c.o:
 	gcc -c $(CFLAGS) $(SDL_CFLAGS) $<
 
-$(EXE).o: $(EXE).c graphics_utils.h vector3.h
-graphics_utils.o: graphics_utils.c graphics_utils.h
-vector3.o: vector3.c vector3.h
+graphics_utils.a: errors.o materials.o objects.o textures.o vector3.o
+	ar -rcs $@ $^
+
+
+$(EXE).o: $(EXE).c graphics_utils.a
+errors.o: errors.c graphics_utils.a
+materials.o: materials.c graphics_utils.a
+objects.o: objects.c graphics_utils.a
+textures.o: textures.c graphics_utils.a
+vector3.o: vector3.c graphics_utils.a
+
 
 clean:
 	$(CLEAN)
 
 zip:
-	zip project.zip $(EXE).c graphics_utils.* vector3.* Makefile README
+	zip project.zip *.c *.h *.obj *.mtl Makefile README

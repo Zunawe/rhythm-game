@@ -1,0 +1,16 @@
+CSCI 4229 - Project
+Bryce Wilson
+
+Controls:
+	Space:					Toggle God View
+	Arrow Keys:				Move Camera (God View only)
+	Esc:					Close Program
+
+
+I am definitely on a slow start because I haven't had time to work during the week with my job. The pace will pick up starting Friday (today). I'm abandoning the idea of a procedurally generated track, and instead I'll just make one custom for a particular song.
+
+To convey speed better, there will be scenery objects close to the track and maybe some sort of overlay on the screen for "speed lines". The obstacles/targets will play a simple animation and sound when interacted with at the right time.
+
+I've got a basic obj for the car that will be riding the track, but I'm still working on getting it to load. The track itself should eventually be saved to a list since it's so long. The algorithm that generates the path was something I made before the lecture about Bezier curves and splines; I might update it to that so I have more control over where it goes.
+
+There will be some emission lighting on obstacles/scenery/car as well as some actual lighting around where the camera is (maybe some scenery too). If I get it looking nice enough, I'll go add a particle engine or an interesting shader.

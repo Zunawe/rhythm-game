@@ -1,28 +1,6 @@
 #include "graphics_utils.h"
 
-void set_material_properties(MaterialProperties props){
-	glMaterialfv(GL_FRONT, GL_AMBIENT, props.ambient);
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, props.diffuse);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, props.specular);
-	glMaterialf(GL_FRONT, GL_SHININESS, props.shininess);
-}
-
-void check_error_at(const char *location){
-	int error = glGetError();
-	if(error){
-		fprintf(stderr, "ERROR: %s [%s]\n", gluErrorString(error), location);
-	}
-}
-
-void throw_error(const char *format, ...){
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	va_end(args);
-	exit(1);
-}
-
-void reverse_bytes(void* x, const int n){
+static void reverse_bytes(void* x, const int n){
 	int k;
 	char *ch = (char*)x;
 	for(k = 0; k < n / 2; ++k){
