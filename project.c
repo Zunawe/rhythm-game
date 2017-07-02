@@ -5,15 +5,21 @@
 
 #define NUM_PATH_STEPS 64
 #define NUM_CURVES 128
+#define NUM_BARRIERS 2
 
 #define cos_deg(t) cos((t) * PI / 180)
 #define sin_deg(t) sin((t) * PI / 180)
+
+typedef struct{
+	unsigned int step;
+	unsigned char broken;
+} barrier;
 
 
 SDL_Surface *screen;
 char running;
 
-char view_mode = 0;
+char car_down = 0;
 
 // Perspective Projection Variables
 double ar = 1.0;
@@ -26,16 +32,21 @@ unsigned int keypress_period = 5000; // milliseconds
 
 // path_points is a list of 3D vectors that define the course
 vector3 path_points[(NUM_PATH_STEPS + 1) * NUM_CURVES][3];
+barrier barriers[NUM_BARRIERS] = {{100, 0}, {110, 0}};
+unsigned int next_barrier = 0;
 unsigned int current_camera_step = 0;
 
-int ship;
+int ship_list;
+int barrier_list;
+int button_list;
 
 
-MaterialProperties track_material = {{1.0, 1.0, 1.0, 1.0},
+MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
+                                     {0.2, 0.2, 0.2, 1.0},
                                      {1.0, 1.0, 1.0, 1.0},
-                                     {0.5, 0.5, 0.5, 1.0},
                                      {0.0, 0.0, 0.0, 1.0},
-                                     100.0};
+                                     128.0};
+
 
 
 vector3 v3x = {1, 0, 0};
@@ -156,6 +167,15 @@ void create_vertex(vector3 pos, vector3 face){
 	glVertex3d(pos.x, pos.y, pos.z);
 }
 
+void check_interaction(){
+	if(current_camera_step + 3 == barriers[next_barrier].step && car_down){
+		barriers[next_barrier].broken = 1;
+	}
+	if(current_camera_step + 3 > barriers[next_barrier].step){
+		++next_barrier;
+	}
+}
+
 // Assumes positive y-axis is up always
 void rotate_x_to(vector3 v){
 	v = v3normalize(v);
@@ -175,22 +195,16 @@ void display(){
 
 	glLoadIdentity();
 
-	if(view_mode){
-		gluLookAt(-dim * sin_deg(th) * cos_deg(ph), dim * sin_deg(ph), dim * cos_deg(th) * cos_deg(ph),
-			      0, 0, 0,
-			      0, cos_deg(ph), 0);
-	}
-	else{
-		gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
-			      path_points[current_camera_step + 5][0].x, path_points[current_camera_step + 5][0].y, path_points[current_camera_step + 5][0].z,
-			      0, 1, 0);
-	}
+	gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
+		      path_points[current_camera_step + 5][0].x, path_points[current_camera_step + 5][0].y, path_points[current_camera_step + 5][0].z,
+		      0, 1, 0);
+
 	// Lighting
 	if(1){
 		float ambient[]  = {0.2, 0.2, 0.2, 1.0};
-		float diffuse[]  = {1.0, 1.0, 1.0, 1.0};
+		float diffuse[]  = {0.5, 0.5, 0.5, 1.0};
 		float specular[] = {0.5, 0.5, 0.5, 1.0};
-		float position[] = {path_points[current_camera_step][0].x, path_points[current_camera_step][0].y, path_points[current_camera_step][0].z, 1.0};
+		float position[] = {path_points[current_camera_step][0].x + path_points[current_camera_step][2].x, path_points[current_camera_step][0].y + path_points[current_camera_step][2].y, path_points[current_camera_step][0].z + path_points[current_camera_step][2].z, 1.0};
 
 		glEnable(GL_NORMALIZE);
 		glEnable(GL_LIGHTING);
@@ -202,6 +216,8 @@ void display(){
 		glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
 		glLightfv(GL_LIGHT0, GL_POSITION, position);
 	}
+
+	check_interaction();
 
 	// Draw Objects
 	glColor3d(1, 1, 1);
@@ -223,18 +239,46 @@ void display(){
 	glEnd();
 	glPopMatrix();
 
+	// Button
 	glPushMatrix();
-	glTranslated(path_points[current_camera_step + 3][0].x + (0.1 * path_points[current_camera_step + 3][2].x),
-		         path_points[current_camera_step + 3][0].y + (0.1 * path_points[current_camera_step + 3][2].y),
-		         path_points[current_camera_step + 3][0].z + (0.1 * path_points[current_camera_step + 3][2].z));
+	glTranslated(path_points[200][0].x, path_points[200][0].y, path_points[200][0].z);
+	rotate_x_to(path_points[200][1]);
+	glRotated(90, 0, 1, 0);
+	glScaled(0.05, 0.03, 0.05);
+	glCallList(button_list);
+	glPopMatrix();
+
+
+	// Barrier
+	for(unsigned int i = 0; i < NUM_BARRIERS; ++i){
+		if(barriers[i].broken){
+			continue;
+		}
+		glPushMatrix();
+		glTranslated(path_points[barriers[i].step][0].x, path_points[barriers[i].step][0].y, path_points[barriers[i].step][0].z);
+		rotate_x_to(path_points[barriers[i].step][1]);
+		glRotated(90, 0, 1, 0);
+		glScaled(0.2, 0.1, 0.1);
+		glCallList(barrier_list);
+		glPopMatrix();
+	}
+
+
+	// Ship
+	glPushMatrix();
+	vector3 car_pos = path_points[current_camera_step + 3][0];
+	if(!car_down){
+		car_pos = v3sum(car_pos, v3scale(path_points[current_camera_step + 3][2], 0.01));
+	}
+	glTranslated(car_pos.x, car_pos.y, car_pos.z);
 	glScaled(0.1, 0.1, 0.1);
 	rotate_x_to(path_points[current_camera_step + 3][1]);
-	glCallList(ship);
+	glCallList(ship_list);
 	glPopMatrix();
 
 	// Unlit Objects
 	glDisable(GL_LIGHTING);
-	draw_axes();
+//	draw_axes();
 
 	glFlush();
 	SDL_GL_SwapBuffers();
@@ -251,26 +295,24 @@ void test_display(){
 		      0, cos_deg(ph), 0);
 
 	
-	if(1){
-		float ambient[]  = {0.0, 0.0, 0.0, 1.0};
-		float diffuse[]  = {0.8, 0.8, 0.8, 1.0};
-		float specular[] = {0.5, 0.5, 0.5, 1.0};
-		float position[] = {7.0, 7.0, -7.0, 1.0};
+	float ambient[]  = {0.0, 0.0, 0.0, 1.0};
+	float diffuse[]  = {0.8, 0.8, 0.8, 1.0};
+	float specular[] = {0.5, 0.5, 0.5, 1.0};
+	float position[] = {7.0, 7.0, 7.0, 1.0};
 
-		glEnable(GL_NORMALIZE);
-		glEnable(GL_LIGHTING);
-		glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
-		glEnable(GL_LIGHT0);
+	glEnable(GL_NORMALIZE);
+	glEnable(GL_LIGHTING);
+	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
+	glEnable(GL_LIGHT0);
 
-		glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-		glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-		glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-		glLightfv(GL_LIGHT0, GL_POSITION, position);
-	}
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
 
 	glPushMatrix();
 	glScaled(5, 5, 5);
-	glCallList(ship);
+	glCallList(barrier_list);
 	glPopMatrix();
 
 	glDisable(GL_LIGHTING);
@@ -278,7 +320,7 @@ void test_display(){
 	draw_axes();
 
 	glPushMatrix();
-	glTranslated(7, 7, -7);
+	glTranslatef(position[0], position[1], position[2]);
 	draw_sphere();
 	glPopMatrix();
 	glFlush();
@@ -297,24 +339,14 @@ void timer(){
 }
 
 void handle_keypress(){
+	car_down = 0;
+
 	Uint8* keys = SDL_GetKeyState(NULL);
 	if(keys[SDLK_ESCAPE]){
 		running = 0;
 	}
-	if(keys[SDLK_UP]){
-		ph += 5;
-	}
-	if(keys[SDLK_DOWN]){
-		ph -= 5;
-	}
-	if(keys[SDLK_LEFT]){
-		th += 5;
-	}
-	if(keys[SDLK_RIGHT]){
-		th -= 5;
-	}
 	if(keys[SDLK_SPACE]){
-		view_mode = 1 - view_mode;
+		car_down = 1;
 	}
 
 	th = fmod(th, 360.0);
@@ -344,7 +376,7 @@ void init(){
 	running = 1;
 
 	SDL_Init(SDL_INIT_VIDEO);
-	screen = SDL_SetVideoMode(1024, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
+	screen = SDL_SetVideoMode(1800, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
 	if(!screen){
 		throw_error("Failed to set video mode\n");
 	}
@@ -359,7 +391,9 @@ void init(){
 
 	reshape(screen->w, screen->h);
 
-	ship = load_obj("ship.obj");
+	ship_list = load_obj("ship.obj");
+	barrier_list = load_obj("barrier.obj");
+	button_list = load_obj("button.obj");
 
 	check_error_at("Init");
 }
@@ -368,7 +402,7 @@ void main_loop(void (*display)(void)){
 	// Timers
 	double t = 0;
 	double key_timer = 0;
-	double move_timer = 50;
+	double move_timer = 20;
 
 	while(running){
 		t = SDL_GetTicks();
@@ -397,7 +431,7 @@ void main_loop(void (*display)(void)){
 
 		if(t - move_timer > 0){
 			timer();
-			move_timer = t + 50;
+			move_timer = t + 20;
 		}
 
 		display();
