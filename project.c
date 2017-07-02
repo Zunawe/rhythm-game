@@ -6,6 +6,7 @@
 #define NUM_PATH_STEPS 64
 #define NUM_CURVES 128
 #define NUM_BARRIERS 2
+#define NUM_BUTTONS 2
 
 #define cos_deg(t) cos((t) * PI / 180)
 #define sin_deg(t) sin((t) * PI / 180)
@@ -15,11 +16,18 @@ typedef struct{
 	unsigned char broken;
 } barrier;
 
+typedef struct{
+	unsigned int step;
+	unsigned char pressed;
+} button;
+
 
 SDL_Surface *screen;
 char running;
 
 char car_down = 0;
+char hit = 0;
+double hit_timer = 0;
 
 // Perspective Projection Variables
 double ar = 1.0;
@@ -32,9 +40,11 @@ unsigned int keypress_period = 5000; // milliseconds
 
 // path_points is a list of 3D vectors that define the course
 vector3 path_points[(NUM_PATH_STEPS + 1) * NUM_CURVES][3];
+unsigned int current_camera_step = 0;
 barrier barriers[NUM_BARRIERS] = {{100, 0}, {110, 0}};
 unsigned int next_barrier = 0;
-unsigned int current_camera_step = 0;
+button buttons[NUM_BUTTONS] = {{200, 0}, {210, 0}};
+unsigned int next_button = 0;
 
 int ship_list;
 int barrier_list;
@@ -171,8 +181,18 @@ void check_interaction(){
 	if(current_camera_step + 3 == barriers[next_barrier].step && car_down){
 		barriers[next_barrier].broken = 1;
 	}
+	if(current_camera_step + 3 < buttons[next_button].step + 2 &&
+	   current_camera_step + 3 > buttons[next_button].step - 2 &&
+	   hit){
+		buttons[next_button].pressed = 1;
+	}
+
+
 	if(current_camera_step + 3 > barriers[next_barrier].step){
 		++next_barrier;
+	}
+	if(current_camera_step + 3 > buttons[next_button].step + 2){
+		++next_button;
 	}
 }
 
@@ -240,13 +260,18 @@ void display(){
 	glPopMatrix();
 
 	// Button
-	glPushMatrix();
-	glTranslated(path_points[200][0].x, path_points[200][0].y, path_points[200][0].z);
-	rotate_x_to(path_points[200][1]);
-	glRotated(90, 0, 1, 0);
-	glScaled(0.05, 0.03, 0.05);
-	glCallList(button_list);
-	glPopMatrix();
+	for(unsigned int i = 0; i < NUM_BUTTONS; ++i){
+		if(buttons[i].pressed){
+			continue;
+		}
+		glPushMatrix();
+		glTranslated(path_points[buttons[i].step][0].x, path_points[buttons[i].step][0].y, path_points[buttons[i].step][0].z);
+		rotate_x_to(path_points[buttons[i].step][1]);
+		glRotated(90, 0, 1, 0);
+		glScaled(0.05, 0.03, 0.05);
+		glCallList(button_list);
+		glPopMatrix();
+	}
 
 
 	// Barrier
@@ -339,14 +364,26 @@ void timer(){
 }
 
 void handle_keypress(){
-	car_down = 0;
+	hit = 0;
 
 	Uint8* keys = SDL_GetKeyState(NULL);
 	if(keys[SDLK_ESCAPE]){
 		running = 0;
 	}
 	if(keys[SDLK_SPACE]){
-		car_down = 1;
+		if(hit_timer <= 0){
+			if(!car_down){
+				hit = 1;
+				hit_timer = 150;
+			}
+			car_down = 1;
+		}
+		else if(car_down){
+			car_down = 1;
+		}
+	}
+	else{
+		car_down = 0;
 	}
 
 	th = fmod(th, 360.0);
@@ -401,11 +438,16 @@ void init(){
 void main_loop(void (*display)(void)){
 	// Timers
 	double t = 0;
+	double dt = 0;
 	double key_timer = 0;
 	double move_timer = 20;
 
 	while(running){
+		dt = t;
 		t = SDL_GetTicks();
+		dt = t - dt;
+
+		hit_timer -= dt;
 
 		SDL_Event event;
 		while(SDL_PollEvent(&event)){
