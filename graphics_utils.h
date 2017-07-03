@@ -25,8 +25,8 @@ typedef struct{
 void check_error_at(const char *location);
 void throw_error(const char *format, ...);
 void set_material_properties(MaterialProperties props);
-int load_obj(const char* file);
-unsigned int load_texture(const char* file);
+int load_obj(const char *file);
+unsigned int load_texture(const char *file);
 
 vector3 v3cross(vector3 v1, vector3 v2);
 double v3dot(vector3 v1, vector3 v2);

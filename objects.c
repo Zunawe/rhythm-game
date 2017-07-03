@@ -265,7 +265,7 @@ static void SetMaterial(const char* name){
 //
 //  Load OBJ file
 //
-int load_obj(const char* file){
+int load_obj(const char *file){
    int k;
    int  Nv,Nn,Nt;  //  Number of vertex, normal and textures
    int  Mv,Mn,Mt;  //  Maximum vertex, normal and textures

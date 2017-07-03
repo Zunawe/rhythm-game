@@ -1,6 +1,5 @@
 #include "graphics_utils.h"
 
-
 #define PI 3.14159265358979323
 
 #define NUM_INTERPOLATED_STEPS 64
@@ -301,7 +300,7 @@ void display(){
 
 	glLoadIdentity();
 
-	if(0){
+	if(1){
 		gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
 			      path_points[current_camera_step + 4][0].x, path_points[current_camera_step + 4][0].y, path_points[current_camera_step + 4][0].z,
 			      0, 1, 0);

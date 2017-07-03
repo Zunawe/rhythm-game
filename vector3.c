@@ -16,6 +16,9 @@ vector3 v3diff(vector3 v1, vector3 v2){
 
 vector3 v3normalize(vector3 v){
 	double len = v3length(v);
+	if(len == 0.0){
+		return v;
+	}
 	vector3 result = {v.x / len, v.y / len, v.z / len};
 	return result;
 }

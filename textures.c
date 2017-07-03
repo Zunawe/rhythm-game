@@ -10,7 +10,7 @@ static void reverse_bytes(void* x, const int n){
 	}
 }
 
-unsigned int load_texture(const char* file){
+unsigned int load_texture(const char *file){
 	unsigned int		texture;		// Texture name
 	FILE*				f;				// File pointer
 	unsigned short		magic;			// Image magic
