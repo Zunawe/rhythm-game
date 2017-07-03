@@ -3,8 +3,8 @@
 
 #define PI 3.14159265358979323
 
-#define NUM_PATH_STEPS 64
-#define NUM_CURVES 128
+#define NUM_INTERPOLATED_STEPS 64
+#define NUM_KNOTS 5
 #define NUM_BARRIERS 2
 #define NUM_BUTTONS 2
 
@@ -49,7 +49,7 @@ double ph = 0.01;
 unsigned int keypress_period = 5000; // milliseconds
 
 // path_points is a list of 3D vectors that define the course
-vector3 path_points[(NUM_PATH_STEPS + 1) * NUM_CURVES][3];
+vector3 path_points[(NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS][3];
 unsigned int current_camera_step = 0;
 barrier barriers[NUM_BARRIERS] = {{100, 0}, {110, 0}};
 unsigned int next_barrier = 0;
@@ -146,48 +146,53 @@ void draw_sphere(){
 	glPopMatrix();
 }
 
-// This function takes a position and direction, and then progresses those vectors
-// until the direction is equal to final_direction. The key idea is that the ending direction
-// is what is set, not the ending position.
-// pathInfo contains the state of the path
-// 		pathInfo[0] - Position Vector
-// 		pathInfo[1] - Forward Vector
-// final_direction is the vector that the path will point in the direction of
-// 		after this function returns
-// ds is the distance moved per step
-// num_steps is the number of steps to take before the curve is complete
-// action is the callback for each context along the curve
+// S is the coefficients for the spline
+// S[j](x) = S[0] + S[1](x - S[4]) + S[2](x - S[4])^2 + S[3](x - S[4])^3
+void cubic_spline(double x[NUM_KNOTS][2], double S[NUM_KNOTS - 1][5]){
+	unsigned int n = NUM_KNOTS - 1;
 
-// NOTE: This could be done between points (rather than between directions) by using Bezier curves/cardinal splines
-// This was already implemented by the time the lecture came around
-// If there's time, I can update this, but it's good enough until then.
-void traverse_curve(vector3 *pathInfo, vector3 final_direction, double ds, unsigned int num_steps, void (*action)(vector3, vector3)){
-	vector3 forward_vector_1 = v3normalize(pathInfo[1]);
-	vector3 forward_vector_2 = v3normalize(final_direction);
-
-	// Find the transition vector between initial and final facing
-	vector3 df = v3diff(forward_vector_2, forward_vector_1);
-	vector3 current_forward = {0, 0, 0};
-	for(unsigned int t = 0; t <= num_steps; ++t){
-		// Rotate the forward vector slightly
-		current_forward.x = forward_vector_1.x + (df.x * t / num_steps);
-		current_forward.y = forward_vector_1.y + (df.y * t / num_steps);
-		current_forward.z = forward_vector_1.z + (df.z * t / num_steps);
-		current_forward = v3normalize(current_forward);
-
-		// Move forward
-		pathInfo[0].x += current_forward.x * ds;
-		pathInfo[0].y += current_forward.y * ds;
-		pathInfo[0].z += current_forward.z * ds;
-
-		// Act on the new position/forward
-		action(pathInfo[0], current_forward);
+	double a[n + 1];
+	for(unsigned int i = 0; i < n + 1; ++i){
+		a[i] = x[i][1];
 	}
-	
-	// Set the forward vector to the current state
-	pathInfo[1].x = current_forward.x;
-	pathInfo[1].y = current_forward.y;
-	pathInfo[1].z = current_forward.z;
+	double b[n];
+	double d[n];
+	double h[n];
+	for(unsigned int i = 0; i < n; ++i){
+		h[i] = x[i + 1][0] - x[i][0];
+	}
+	double alpha[n];
+	for(unsigned int i = 1; i < n; ++i){
+		alpha[i] = ((3.0 / h[i]) * (a[i + 1] - a[i])) - ((3.0 / h[i - 1]) * (a[i] - a[i - 1]));
+	}
+	double c[n + 1];
+	double l[n + 1];
+	double mu[n + 1];
+	double z[n + 1];
+	l[0] = 1;
+	mu[0] = z[0] = 0.0;
+
+	for(unsigned int i = 1; i < n; ++i){
+		l[i] = 2.0 * (x[i + 1][0] - x[i - 1][0]) - (h[i - 1] * mu[i - 1]);
+		mu[i] = h[i] / l[i];
+		z[i] = (alpha[i] - (h[i - 1] * z[i - 1])) / l[i];
+	}
+	l[n] = 1;
+	z[n] = c[n] = 0;
+
+	for(int j = n - 1; j >= 0; --j){
+		c[j] = z[j] - (mu[j] * c[j + 1]);
+		b[j] = ((a[j + 1] - a[j]) / h[j]) - ((h[j] * (c[j + 1] + (2.0 * c[j]))) / 3.0);
+		d[j] = (c[j + 1] - c[j]) / (3.0 * h[j]);
+	}
+
+	for(unsigned int i = 0; i < n; ++i){
+		S[i][0] = a[i];
+		S[i][1] = b[i];
+		S[i][2] = c[i];
+		S[i][3] = d[i];
+		S[i][4] = x[i][0];
+	}
 }
 
 // Callback for traverse curve that puts a vertex at each position
@@ -282,6 +287,7 @@ void display(){
 	set_material_properties(track_material);
 	glPushMatrix();
 	glBegin(GL_QUADS);
+	/*
 	for(unsigned int i = 0; i < (NUM_PATH_STEPS + 1) * NUM_CURVES - 2; ++i){
 		vector3 current_perpendicular = v3scale(v3cross(path_points[i][1], path_points[i][2]), 0.2);
 		vector3 next_perpendicular = v3scale(v3cross(path_points[i + 1][1], path_points[i + 1][2]), 0.2);
@@ -292,7 +298,7 @@ void display(){
 		glVertex3d(path_points[i][0].x - current_perpendicular.x, path_points[i][0].y - current_perpendicular.y, path_points[i][0].z - current_perpendicular.z);
 		glVertex3d(path_points[i + 1][0].x - next_perpendicular.x, path_points[i + 1][0].y - next_perpendicular.y, path_points[i + 1][0].z - next_perpendicular.z);
 		glVertex3d(path_points[i + 1][0].x + next_perpendicular.x, path_points[i + 1][0].y + next_perpendicular.y, path_points[i + 1][0].z + next_perpendicular.z);
-	}
+	}*/
 	glEnd();
 	glPopMatrix();
 
@@ -394,26 +400,16 @@ void test_display(){
 
 	// Opaque Objects
 	set_material_properties(default_material);
-	glBegin(GL_QUADS);
-	glNormal3d(0, 1, 0);
-	glVertex3d(-10, -5, -10);
-	glVertex3d(-10, -5, 10);
-	glVertex3d(10, -5, 10);
-	glVertex3d(10, -5, -10);
+	glBegin(GL_LINE_STRIP);
+	for(unsigned int i = 0; i < (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS; ++i){
+	}
 	glEnd();
 
 	// Transparent Objects
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
 	glDepthMask(0);
-	for(unsigned int i = 0; i < 1; ++i){
-		pulse p = pulses[i];
-		set_material_properties(p.material);
-		glPushMatrix();
-		glScaled(10, 10, 10);
-		draw_torus(p.R, p.r);
-		glPopMatrix();
-	}
+	// Draw Here
 	glDisable(GL_BLEND);
 	glDepthMask(1);
 
@@ -445,7 +441,7 @@ void timer(){
 		pulses[i].material.emission[2] *= pulses[i].lifetime / 100.0 / 2.0;
 	}
 	project();
-	display();
+	//display();
 	check_error_at("Timer");
 }
 
@@ -499,12 +495,11 @@ void record_position(vector3 pos, vector3 face){
 
 void init(){
 	// Create the path and store it so we don't have to calculate it every frame
-	vector3 pos = {0, 0, 0};
-	vector3 forward = {1, 1, 0};
-	vector3 pathInfo[2] = {pos, forward};
-	for(int i = 0; i < NUM_CURVES; ++i){
-		vector3 next_forward = {10 * cos(i * i), 4 * sin(i), 10 * sin(i * i * i * 0.2)};
-		traverse_curve(pathInfo, next_forward, 0.2, NUM_PATH_STEPS, record_position);
+	double knots[NUM_KNOTS][2] = {{0, 0}, {1, 1}, {2, 2}, {3, 1}, {4, 2}};
+	double S[NUM_KNOTS - 1][5];
+	cubic_spline(knots, S);
+	for(int i = 0; i < NUM_KNOTS - 1; ++i){
+		printf("{%f, %f, %f, %f, %f}\n", S[i][0], S[i][1], S[i][2], S[i][3], S[i][4]);
 	}
 	current_camera_step = 0;
 
@@ -586,7 +581,7 @@ void cleanup(){
 int main(int argc, char *argv[]){
 	init();
 
-	main_loop(display);
+	main_loop(test_display);
 
 	cleanup();
 	return 0;
