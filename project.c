@@ -21,9 +21,19 @@ typedef struct{
 	unsigned char pressed;
 } button;
 
+typedef struct{
+	double R;
+	double r;
+	vector3 pos;
+	vector3 up;
+	MaterialProperties material;
+	double lifetime;
+} pulse;
+
 
 SDL_Surface *screen;
 char running;
+char drawing_transparency = 0;
 
 char car_down = 0;
 char hit = 0;
@@ -45,11 +55,18 @@ barrier barriers[NUM_BARRIERS] = {{100, 0}, {110, 0}};
 unsigned int next_barrier = 0;
 button buttons[NUM_BUTTONS] = {{200, 0}, {210, 0}};
 unsigned int next_button = 0;
+pulse pulses[5];
+unsigned char next_pulse = 0;
 
 int ship_list;
 int barrier_list;
 int button_list;
 
+MaterialProperties default_material = {{0.2, 0.2, 0.2, 1.0},
+                                     {0.8, 0.8, 0.8, 1.0},
+                                     {0.0, 0.0, 0.0, 1.0},
+                                     {0.0, 0.0, 0.0, 1.0},
+                                     0.0};
 
 MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
                                      {0.2, 0.2, 0.2, 1.0},
@@ -62,6 +79,7 @@ MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
 vector3 v3x = {1, 0, 0};
 vector3 v3y = {0, 1, 0};
 vector3 v3z = {0, 0, 1};
+vector3 v30 = {0, 0, 0};
 
 // Set the projection matrix
 void project(){
@@ -91,8 +109,8 @@ void draw_axes(){
 }
 
 void draw_torus(double R, double r){
-	double dt = 1;
-	double dT = 1;
+	double dt = 15;
+	double dT = 15;
 	glPushMatrix();
 	for(unsigned int T = 0; T < 360; T += dT){
 		glBegin(GL_QUAD_STRIP);
@@ -177,14 +195,33 @@ void create_vertex(vector3 pos, vector3 face){
 	glVertex3d(pos.x, pos.y, pos.z);
 }
 
+pulse generate_pulse(vector3 pos, vector3 up, double size, double r, double g, double b){
+	MaterialProperties material = {{0.0, 0.0, 0.0, 1.0},
+	                               {0.0, 0.0, 0.0, 1.0},
+	                               {0.0, 0.0, 0.0, 1.0},
+	                               {r,   g,   b,   1.0},
+	                               0.0};
+	pulse new_pulse;
+	new_pulse.r = 0.1 * size;
+	new_pulse.R = new_pulse.r;
+	new_pulse.pos = pos;
+	new_pulse.up = up;
+	new_pulse.material = material;
+	new_pulse.lifetime = 100;
+
+	return new_pulse;
+}
+
 void check_interaction(){
 	if(current_camera_step + 3 == barriers[next_barrier].step && car_down){
-		barriers[next_barrier].broken = 1;
+	   	pulses[next_pulse++] = generate_pulse(path_points[barriers[next_barrier].step][0], path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
+		barriers[next_barrier++].broken = 1;
 	}
 	if(current_camera_step + 3 < buttons[next_button].step + 2 &&
 	   current_camera_step + 3 > buttons[next_button].step - 2 &&
 	   hit){
-		buttons[next_button].pressed = 1;
+	   	pulses[next_pulse++] = generate_pulse(path_points[buttons[next_button].step][0], path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
+		buttons[next_button++].pressed = 1;
 	}
 
 
@@ -273,7 +310,6 @@ void display(){
 		glPopMatrix();
 	}
 
-
 	// Barrier
 	for(unsigned int i = 0; i < NUM_BARRIERS; ++i){
 		if(barriers[i].broken){
@@ -288,7 +324,6 @@ void display(){
 		glPopMatrix();
 	}
 
-
 	// Ship
 	glPushMatrix();
 	vector3 car_pos = path_points[current_camera_step + 3][0];
@@ -300,6 +335,28 @@ void display(){
 	rotate_x_to(path_points[current_camera_step + 3][1]);
 	glCallList(ship_list);
 	glPopMatrix();
+
+
+	// Transparent Objects
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+	glDepthMask(0);
+	for(unsigned int i = 0; i < 5; ++i){
+		pulse p = pulses[i];
+		if(p.lifetime <= 0.0){
+			continue;
+		}
+		set_material_properties(p.material);
+		glPushMatrix();
+		glTranslated(car_pos.x, car_pos.y, car_pos.z);
+		rotate_x_to(path_points[current_camera_step + 3][2]);
+		glRotated(90, 0, 0, 1);
+		draw_torus(p.R, p.r);
+		glPopMatrix();
+	}
+	glDisable(GL_BLEND);
+	glDepthMask(1);
+
 
 	// Unlit Objects
 	glDisable(GL_LIGHTING);
@@ -335,11 +392,32 @@ void test_display(){
 	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
 	glLightfv(GL_LIGHT0, GL_POSITION, position);
 
-	glPushMatrix();
-	glScaled(5, 5, 5);
-	glCallList(barrier_list);
-	glPopMatrix();
+	// Opaque Objects
+	set_material_properties(default_material);
+	glBegin(GL_QUADS);
+	glNormal3d(0, 1, 0);
+	glVertex3d(-10, -5, -10);
+	glVertex3d(-10, -5, 10);
+	glVertex3d(10, -5, 10);
+	glVertex3d(10, -5, -10);
+	glEnd();
 
+	// Transparent Objects
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+	glDepthMask(0);
+	for(unsigned int i = 0; i < 1; ++i){
+		pulse p = pulses[i];
+		set_material_properties(p.material);
+		glPushMatrix();
+		glScaled(10, 10, 10);
+		draw_torus(p.R, p.r);
+		glPopMatrix();
+	}
+	glDisable(GL_BLEND);
+	glDepthMask(1);
+
+	// Objects without Lighting
 	glDisable(GL_LIGHTING);
 	glColor3d(1, 1, 1);
 	draw_axes();
@@ -348,16 +426,24 @@ void test_display(){
 	glTranslatef(position[0], position[1], position[2]);
 	draw_sphere();
 	glPopMatrix();
+
 	glFlush();
 	SDL_GL_SwapBuffers();
 
 	check_error_at("Test Display");
 }
 
-// Called every 50 ms
+// Called every 20 ms
 void timer(){
 	// Move the camera
 	++current_camera_step;
+	for(unsigned int i = 0; i < 5; ++i){
+		pulses[i].lifetime -= 20;
+		pulses[i].R += 0.1;
+		pulses[i].material.emission[0] *= pulses[i].lifetime / 100.0 / 2.0;
+		pulses[i].material.emission[1] *= pulses[i].lifetime / 100.0 / 2.0;
+		pulses[i].material.emission[2] *= pulses[i].lifetime / 100.0 / 2.0;
+	}
 	project();
 	display();
 	check_error_at("Timer");
@@ -369,6 +455,18 @@ void handle_keypress(){
 	Uint8* keys = SDL_GetKeyState(NULL);
 	if(keys[SDLK_ESCAPE]){
 		running = 0;
+	}
+	if(keys[SDLK_UP]){
+		ph += 5;
+	}
+	if(keys[SDLK_DOWN]){
+		ph -= 5;
+	}
+	if(keys[SDLK_LEFT]){
+		th += 5;
+	}
+	if(keys[SDLK_RIGHT]){
+		th -= 5;
 	}
 	if(keys[SDLK_SPACE]){
 		if(hit_timer <= 0){
@@ -431,7 +529,7 @@ void init(){
 	ship_list = load_obj("ship.obj");
 	barrier_list = load_obj("barrier.obj");
 	button_list = load_obj("button.obj");
-
+	
 	check_error_at("Init");
 }
 
