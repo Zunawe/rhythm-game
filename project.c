@@ -196,7 +196,7 @@ double interpolate_point(double x, double cs[5]){
 }
 
 double spline_tangent_slope(double x, double cs[5]){
-	return cs[1] + (2 * cs[2] * (x - cs[4])) + (3 * cs[3] * pow(x - cs[4], 3.0));
+	return cs[1] + (2 * cs[2] * (x - cs[4])) + (3 * cs[3] * pow(x - cs[4], 2.0));
 }
 
 void interpolate_points(vector3 knots[NUM_KNOTS]){
@@ -557,7 +557,7 @@ void init(){
 	// Create the path and store it so we don't have to calculate it every frame
 	vector3 knots[NUM_KNOTS];
 	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
-		vector3 knot = {i * 10, 0, 0};
+		vector3 knot = {i * 10, sin(i), tan(i)};
 		knots[i] = knot;
 	}
 	interpolate_points(knots);
