@@ -4,7 +4,7 @@
 #define PI 3.14159265358979323
 
 #define NUM_INTERPOLATED_STEPS 64
-#define NUM_KNOTS 5
+#define NUM_KNOTS 32
 #define NUM_BARRIERS 2
 #define NUM_BUTTONS 2
 
@@ -24,7 +24,6 @@ typedef struct{
 typedef struct{
 	double R;
 	double r;
-	vector3 pos;
 	vector3 up;
 	MaterialProperties material;
 	double lifetime;
@@ -115,9 +114,7 @@ void draw_torus(double R, double r){
 	for(unsigned int T = 0; T < 360; T += dT){
 		glBegin(GL_QUAD_STRIP);
 		for(unsigned int t = 0; t <= 360; t += dt){
-			glTexCoord2f(0.5 + (t / 360.0), T / 360.0);
 			glNormal3d(sin_deg(T) * cos_deg(t), sin_deg(t), cos_deg(T) * cos_deg(t));								glVertex3d((R * sin_deg(T)) + (r * cos_deg(t)) * sin_deg(T), r * sin_deg(t), (R * cos_deg(T)) + (r * cos_deg(t)) * cos_deg(T));
-			glTexCoord2f(0.5 + ((t + dt) / 360.0), (T + dT) / 360.0);
 			glNormal3d(sin_deg(T + dT) * cos_deg(t + dt), sin_deg(t + dt), cos_deg(T + dT) * cos_deg(t + dt));		glVertex3d((R * sin_deg(T + dT)) + (r * cos_deg(t)) * sin_deg(T + dT), r * sin_deg(t), (R * cos_deg(T + dT)) + (r * cos_deg(t)) * cos_deg(T + dT));
 		}
 		glEnd();
@@ -195,12 +192,60 @@ void cubic_spline(double x[NUM_KNOTS][2], double S[NUM_KNOTS - 1][5]){
 	}
 }
 
-// Callback for traverse curve that puts a vertex at each position
-void create_vertex(vector3 pos, vector3 face){
-	glVertex3d(pos.x, pos.y, pos.z);
+double interpolate_point(double x, double cs[5]){
+	return cs[0] + (cs[1] * (x - cs[4])) + (cs[2] * pow(x - cs[4], 2.0)) + (cs[3] * pow(x - cs[4], 3.0));
 }
 
-pulse generate_pulse(vector3 pos, vector3 up, double size, double r, double g, double b){
+double spline_tangent_slope(double x, double cs[5]){
+	return cs[1] + (2 * cs[2] * (x - cs[4])) + (3 * cs[3] * pow(x - cs[4], 3.0));
+}
+
+void interpolate_points(vector3 knots[NUM_KNOTS]){
+	double x[NUM_KNOTS][2];
+	double Sx[NUM_KNOTS - 1][5];
+	double y[NUM_KNOTS][2];
+	double Sy[NUM_KNOTS - 1][5];
+	double z[NUM_KNOTS][2];
+	double Sz[NUM_KNOTS - 1][5];
+
+	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
+		x[i][0] = i;
+		y[i][0] = i;
+		z[i][0] = i;
+
+		x[i][1] = knots[i].x;
+		y[i][1] = knots[i].y;
+		z[i][1] = knots[i].z;
+	}
+
+	cubic_spline(x, Sx);
+	cubic_spline(y, Sy);
+	cubic_spline(z, Sz);
+
+	double t_step = 1.0 / NUM_INTERPOLATED_STEPS;
+	unsigned int next_point = 0;
+	for(unsigned int i = 0; i < NUM_KNOTS - 1; ++i){
+		for(unsigned int j = 0; j < NUM_INTERPOLATED_STEPS; ++j){
+			vector3 pos;
+			pos.x = interpolate_point((j * t_step) + i, Sx[i]);
+			pos.y = interpolate_point((j * t_step) + i, Sy[i]);
+			pos.z = interpolate_point((j * t_step) + i, Sz[i]);
+			path_points[next_point][0] = pos;
+
+			vector3 tangent;
+			tangent.x = spline_tangent_slope((j * t_step) + i, Sx[i]);
+			tangent.y = spline_tangent_slope((j * t_step) + i, Sy[i]);
+			tangent.z = spline_tangent_slope((j * t_step) + i, Sz[i]);
+			path_points[next_point][1] = v3normalize(tangent);
+
+			path_points[next_point][2] = v3normalize(v3cross(v3cross(tangent, v3y), tangent));
+
+			++next_point;
+		}
+	}
+}
+
+pulse generate_pulse(vector3 up, double size, double r, double g, double b){
 	MaterialProperties material = {{0.0, 0.0, 0.0, 1.0},
 	                               {0.0, 0.0, 0.0, 1.0},
 	                               {0.0, 0.0, 0.0, 1.0},
@@ -209,7 +254,6 @@ pulse generate_pulse(vector3 pos, vector3 up, double size, double r, double g, d
 	pulse new_pulse;
 	new_pulse.r = 0.1 * size;
 	new_pulse.R = new_pulse.r;
-	new_pulse.pos = pos;
 	new_pulse.up = up;
 	new_pulse.material = material;
 	new_pulse.lifetime = 100;
@@ -219,13 +263,13 @@ pulse generate_pulse(vector3 pos, vector3 up, double size, double r, double g, d
 
 void check_interaction(){
 	if(current_camera_step + 3 == barriers[next_barrier].step && car_down){
-	   	pulses[next_pulse++] = generate_pulse(path_points[barriers[next_barrier].step][0], path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
+	   	pulses[next_pulse++] = generate_pulse(path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
 		barriers[next_barrier++].broken = 1;
 	}
 	if(current_camera_step + 3 < buttons[next_button].step + 2 &&
 	   current_camera_step + 3 > buttons[next_button].step - 2 &&
 	   hit){
-	   	pulses[next_pulse++] = generate_pulse(path_points[buttons[next_button].step][0], path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
+	   	pulses[next_pulse++] = generate_pulse(path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
 		buttons[next_button++].pressed = 1;
 	}
 
@@ -257,9 +301,16 @@ void display(){
 
 	glLoadIdentity();
 
-	gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
-		      path_points[current_camera_step + 5][0].x, path_points[current_camera_step + 5][0].y, path_points[current_camera_step + 5][0].z,
-		      0, 1, 0);
+	if(0){
+		gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
+			      path_points[current_camera_step + 4][0].x, path_points[current_camera_step + 4][0].y, path_points[current_camera_step + 4][0].z,
+			      0, 1, 0);
+	}
+	else{
+		gluLookAt(-dim * sin_deg(th) * cos_deg(ph), dim * sin_deg(ph), dim * cos_deg(th) * cos_deg(ph),
+		      0, 0, 0,
+		      0, cos_deg(ph), 0);
+	}
 
 	// Lighting
 	if(1){
@@ -287,8 +338,7 @@ void display(){
 	set_material_properties(track_material);
 	glPushMatrix();
 	glBegin(GL_QUADS);
-	/*
-	for(unsigned int i = 0; i < (NUM_PATH_STEPS + 1) * NUM_CURVES - 2; ++i){
+	for(unsigned int i = 0; i < (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS - 1; ++i){
 		vector3 current_perpendicular = v3scale(v3cross(path_points[i][1], path_points[i][2]), 0.2);
 		vector3 next_perpendicular = v3scale(v3cross(path_points[i + 1][1], path_points[i + 1][2]), 0.2);
 		
@@ -298,7 +348,7 @@ void display(){
 		glVertex3d(path_points[i][0].x - current_perpendicular.x, path_points[i][0].y - current_perpendicular.y, path_points[i][0].z - current_perpendicular.z);
 		glVertex3d(path_points[i + 1][0].x - next_perpendicular.x, path_points[i + 1][0].y - next_perpendicular.y, path_points[i + 1][0].z - next_perpendicular.z);
 		glVertex3d(path_points[i + 1][0].x + next_perpendicular.x, path_points[i + 1][0].y + next_perpendicular.y, path_points[i + 1][0].z + next_perpendicular.z);
-	}*/
+	}
 	glEnd();
 	glPopMatrix();
 
@@ -345,8 +395,10 @@ void display(){
 
 	// Transparent Objects
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	glDepthMask(0);
+
+	// Pulses
 	for(unsigned int i = 0; i < 5; ++i){
 		pulse p = pulses[i];
 		if(p.lifetime <= 0.0){
@@ -360,6 +412,7 @@ void display(){
 		draw_torus(p.R, p.r);
 		glPopMatrix();
 	}
+
 	glDisable(GL_BLEND);
 	glDepthMask(1);
 
@@ -400,16 +453,24 @@ void test_display(){
 
 	// Opaque Objects
 	set_material_properties(default_material);
-	glBegin(GL_LINE_STRIP);
-	for(unsigned int i = 0; i < (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS; ++i){
+
+	for(unsigned int i = 0; i < 5; ++i){
+		pulse p = pulses[i];
+		if(p.lifetime <= 0.0){
+			continue;
+		}
+		set_material_properties(p.material);
+		glPushMatrix();
+		draw_torus(20, 5);
+		glPopMatrix();
 	}
-	glEnd();
+
 
 	// Transparent Objects
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
 	glDepthMask(0);
-	// Draw Here
+	// here
 	glDisable(GL_BLEND);
 	glDepthMask(1);
 
@@ -419,6 +480,13 @@ void test_display(){
 	draw_axes();
 
 	glPushMatrix();
+	glScaled(5, 5, 5);
+	glBegin(GL_LINE_STRIP);
+	for(unsigned int i = 0; i < (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS; ++i){
+		glVertex3d(path_points[i][0].x, path_points[i][0].y, path_points[i][0].z);
+	}
+	glEnd();
+
 	glTranslatef(position[0], position[1], position[2]);
 	draw_sphere();
 	glPopMatrix();
@@ -441,7 +509,7 @@ void timer(){
 		pulses[i].material.emission[2] *= pulses[i].lifetime / 100.0 / 2.0;
 	}
 	project();
-	//display();
+	display();
 	check_error_at("Timer");
 }
 
@@ -486,27 +554,20 @@ void handle_keypress(){
 	project();
 }
 
-// Callback for traverse_curve that saves position vectors
-void record_position(vector3 pos, vector3 face){
-	path_points[current_camera_step][0] = pos;
-	path_points[current_camera_step][1] = face;
-	path_points[current_camera_step++][2] = v3normalize(v3cross(v3cross(face, v3y), face));
-}
-
 void init(){
 	// Create the path and store it so we don't have to calculate it every frame
-	double knots[NUM_KNOTS][2] = {{0, 0}, {1, 1}, {2, 2}, {3, 1}, {4, 2}};
-	double S[NUM_KNOTS - 1][5];
-	cubic_spline(knots, S);
-	for(int i = 0; i < NUM_KNOTS - 1; ++i){
-		printf("{%f, %f, %f, %f, %f}\n", S[i][0], S[i][1], S[i][2], S[i][3], S[i][4]);
+	vector3 knots[NUM_KNOTS];
+	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
+		vector3 knot = {i * 10, 0, 0};
+		knots[i] = knot;
 	}
+	interpolate_points(knots);
 	current_camera_step = 0;
 
 	running = 1;
 
 	SDL_Init(SDL_INIT_VIDEO);
-	screen = SDL_SetVideoMode(1800, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
+	screen = SDL_SetVideoMode(1024, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
 	if(!screen){
 		throw_error("Failed to set video mode\n");
 	}
@@ -581,7 +642,7 @@ void cleanup(){
 int main(int argc, char *argv[]){
 	init();
 
-	main_loop(test_display);
+	main_loop(display);
 
 	cleanup();
 	return 0;
