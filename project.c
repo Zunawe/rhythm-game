@@ -1,11 +1,12 @@
 #include "graphics_utils.h"
+#include "SDL_mixer.h"
 
 #define PI 3.14159265358979323
 
 #define NUM_INTERPOLATED_STEPS 64
-#define NUM_KNOTS 32
-#define NUM_BARRIERS 2
-#define NUM_BUTTONS 2
+#define NUM_KNOTS 100
+#define NUM_BARRIERS 64
+#define NUM_BUTTONS 0
 
 #define cos_deg(t) cos((t) * PI / 180)
 #define sin_deg(t) sin((t) * PI / 180)
@@ -47,11 +48,13 @@ double ph = 0.01;
 unsigned int keypress_period = 5000; // milliseconds
 
 // path_points is a list of 3D vectors that define the course
+vector3 knots[NUM_KNOTS];
 vector3 path_points[(NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS][3];
 unsigned int current_camera_step = 0;
-barrier barriers[NUM_BARRIERS] = {{100, 0}, {110, 0}};
+barrier barriers[NUM_BARRIERS];// = {{16 + 2, 0}, {40 + 2, 0}, {64 + 2}};
 unsigned int next_barrier = 0;
-button buttons[NUM_BUTTONS] = {{200, 0}, {210, 0}};
+button buttons[NUM_BUTTONS] = {};
+//button buttons[NUM_BUTTONS] = {{50, 0}, {67, 0}, {86, 0}, {140, 0}, {158, 0}, {176, 0}};
 unsigned int next_button = 0;
 pulse pulses[5];
 unsigned char next_pulse = 0;
@@ -72,7 +75,9 @@ MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
                                      {0.0, 0.0, 0.0, 1.0},
                                      128.0};
 
+Mix_Music *music;
 
+unsigned int car_camera_step = 2;
 
 vector3 v3x = {1, 0, 0};
 vector3 v3y = {0, 1, 0};
@@ -261,22 +266,24 @@ pulse generate_pulse(vector3 up, double size, double r, double g, double b){
 }
 
 void check_interaction(){
-	if(current_camera_step + 3 == barriers[next_barrier].step && car_down){
-	   	pulses[next_pulse++] = generate_pulse(path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
+	if(current_camera_step + car_camera_step == barriers[next_barrier].step && car_down){
+	   	pulses[next_pulse] = generate_pulse(path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
 		barriers[next_barrier++].broken = 1;
+		next_pulse = (next_pulse + 1) % 5;
 	}
-	if(current_camera_step + 3 < buttons[next_button].step + 2 &&
-	   current_camera_step + 3 > buttons[next_button].step - 2 &&
+	if(current_camera_step + car_camera_step < buttons[next_button].step + 2 &&
+	   current_camera_step + car_camera_step > buttons[next_button].step - 2 &&
 	   hit){
-	   	pulses[next_pulse++] = generate_pulse(path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
+	   	pulses[next_pulse] = generate_pulse(path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
 		buttons[next_button++].pressed = 1;
+		next_pulse = (next_pulse + 1) % 5;
 	}
 
 
-	if(current_camera_step + 3 > barriers[next_barrier].step){
+	if(current_camera_step + 2 > barriers[next_barrier].step){
 		++next_barrier;
 	}
-	if(current_camera_step + 3 > buttons[next_button].step + 2){
+	if(current_camera_step + 2 > buttons[next_button].step + 2){
 		++next_button;
 	}
 }
@@ -302,7 +309,7 @@ void display(){
 
 	if(1){
 		gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
-			      path_points[current_camera_step + 4][0].x, path_points[current_camera_step + 4][0].y, path_points[current_camera_step + 4][0].z,
+			      path_points[current_camera_step + 8][0].x, path_points[current_camera_step + 8][0].y, path_points[current_camera_step + 8][0].z,
 			      0, 1, 0);
 	}
 	else{
@@ -334,6 +341,7 @@ void display(){
 	// Draw Objects
 	glColor3d(1, 1, 1);
 
+	// Path
 	set_material_properties(track_material);
 	glPushMatrix();
 	glBegin(GL_QUADS);
@@ -351,7 +359,7 @@ void display(){
 	glEnd();
 	glPopMatrix();
 
-	// Button
+	// Buttons
 	for(unsigned int i = 0; i < NUM_BUTTONS; ++i){
 		if(buttons[i].pressed){
 			continue;
@@ -365,7 +373,7 @@ void display(){
 		glPopMatrix();
 	}
 
-	// Barrier
+	// Barriers
 	for(unsigned int i = 0; i < NUM_BARRIERS; ++i){
 		if(barriers[i].broken){
 			continue;
@@ -381,13 +389,13 @@ void display(){
 
 	// Ship
 	glPushMatrix();
-	vector3 car_pos = path_points[current_camera_step + 3][0];
+	vector3 car_pos = path_points[current_camera_step + car_camera_step][0];
 	if(!car_down){
-		car_pos = v3sum(car_pos, v3scale(path_points[current_camera_step + 3][2], 0.01));
+		car_pos = v3sum(car_pos, v3scale(path_points[current_camera_step + car_camera_step][2], 0.01));
 	}
 	glTranslated(car_pos.x, car_pos.y, car_pos.z);
 	glScaled(0.1, 0.1, 0.1);
-	rotate_x_to(path_points[current_camera_step + 3][1]);
+	rotate_x_to(path_points[current_camera_step + car_camera_step][1]);
 	glCallList(ship_list);
 	glPopMatrix();
 
@@ -406,7 +414,7 @@ void display(){
 		set_material_properties(p.material);
 		glPushMatrix();
 		glTranslated(car_pos.x, car_pos.y, car_pos.z);
-		rotate_x_to(path_points[current_camera_step + 3][2]);
+		rotate_x_to(path_points[current_camera_step + 5][2]);
 		glRotated(90, 0, 0, 1);
 		draw_torus(p.R, p.r);
 		glPopMatrix();
@@ -418,7 +426,6 @@ void display(){
 
 	// Unlit Objects
 	glDisable(GL_LIGHTING);
-//	draw_axes();
 
 	glFlush();
 	SDL_GL_SwapBuffers();
@@ -496,7 +503,7 @@ void test_display(){
 	check_error_at("Test Display");
 }
 
-// Called every 20 ms
+// Called every 48.875 ms
 void timer(){
 	// Move the camera
 	++current_camera_step;
@@ -555,13 +562,17 @@ void handle_keypress(){
 
 void init(){
 	// Create the path and store it so we don't have to calculate it every frame
-	vector3 knots[NUM_KNOTS];
 	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
-		vector3 knot = {i * 10, sin(i), tan(i)};
-		knots[i] = knot;
+		vector3 next = {i * 50, 0, 0};
+		knots[i] = next;
 	}
 	interpolate_points(knots);
 	current_camera_step = 0;
+
+	for(unsigned int i = 0; i < NUM_BARRIERS; ++i){
+		barrier next = {i * 16 + car_camera_step, 0};
+		barriers[i] = next;
+	}
 
 	running = 1;
 
@@ -572,6 +583,17 @@ void init(){
 	}
 	SDL_WM_SetCaption("Bryce Wilson", "Bryce Wilson");
 
+	Mix_Init(MIX_INIT_MP3);
+	if(Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 4096)){
+		throw_error("Cannot initialize audio\n");
+	}
+	music = Mix_LoadMUS("brothers_in_arms.mp3");
+	if(!music){
+		throw_error("Cannot load music");
+	}
+	if(Mix_PlayMusic(music, 1)){
+		throw_error("Cannot play music\n");
+	}
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -593,7 +615,7 @@ void main_loop(void (*display)(void)){
 	double t = 0;
 	double dt = 0;
 	double key_timer = 0;
-	double move_timer = 20;
+	double move_timer = 950;
 
 	while(running){
 		dt = t;
@@ -624,9 +646,9 @@ void main_loop(void (*display)(void)){
 			key_timer = t + 5;
 		}
 
-		if(t - move_timer > 0){
+		if(t > move_timer){
 			timer();
-			move_timer = t + 20;
+			move_timer += 46.875;
 		}
 
 		display();

@@ -14,7 +14,7 @@ CLEAN = rm -f *.o $(EXE)
 else
 # Linux
 LIBS = -lGL -lGLU -lm
-SDL_LIBS = $(shell sdl-config --libs)
+SDL_LIBS = $(shell sdl-config --libs) -lSDL_mixer
 CFLAGS = -O3 -Wall
 SDL_CFLAGS = $(shell sdl-config --cflags)
 CLEAN = rm -f *.o $(EXE)
