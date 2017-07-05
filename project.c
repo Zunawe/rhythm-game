@@ -4,8 +4,8 @@
 #define PI 3.14159265358979323
 
 #define NUM_INTERPOLATED_STEPS 64
-#define NUM_KNOTS 100
-#define NUM_BARRIERS 64
+#define NUM_KNOTS 120
+#define NUM_BARRIERS 100
 #define NUM_BUTTONS 100
 
 #define cos_deg(t) cos((t) * PI / 180)
@@ -51,9 +51,9 @@ unsigned int keypress_period = 5000; // milliseconds
 vector3 knots[NUM_KNOTS];
 vector3 path_points[(NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS][3];
 unsigned int current_camera_step = 0;
-barrier barriers[NUM_BARRIERS] = {{164, 0}, {168, 0}, {172, 0}, {176, 0}, {180, 0}, {184, 0}, {188, 0}};
+barrier barriers[NUM_BARRIERS] = {{164}, {168}, {172}, {176}, {180}, {184}, {188}, {292}, {296}, {300}, {304}, {308}, {312}, {316}, {356}, {360}, {484}, {488}, {632}, {635}, {638}, {760}, {763}, {766}, {868}, {872}, {928}, {932}, {936}, {940}, {948}, {956}, {992}, {996}, {1000}, {1004}, {1012}, {1020}, {1120}, {1122}, {1124}, {1126}, {1128}, {1136}, {1138}, {1140}, {1142}, {1144}, {1184}, {1186}, {1188}, {1190}, {1192}, {1200}, {1202}, {1204}, {1206}, {1208}, {1210}, {1212}, {1214}, {1248}, {1250}, {1252}, {1254}, {1256}, {1264}, {1266}, {1268}, {1270}, {1272}, {1312}, {1314}, {1316}, {1318}, {1320}, {1328}, {1331}, {1334}, {1336}, {1339}, {1342}};
 unsigned int next_barrier = 0;
-button buttons[NUM_BUTTONS] = {{0, 0}, {12, 0}, {24, 0}, {64, 0}, {76, 0}, {88, 0}, {128, 0}, {140, 0}, {152, 0}};
+button buttons[NUM_BUTTONS] = {{0}, {12}, {24}, {64}, {76}, {88}, {128}, {140}, {152}, {192}, {204}, {216}, {256}, {268}, {280}, {320}, {332}, {344}, {352}, {368}, {376}, {384}, {396}, {408}, {448}, {460}, {472}, {480}, {496}, {504}, {512}, {524}, {536}, {560}, {564}, {568}, {576}, {588}, {600}, {624}, {640}, {652}, {664}, {688}, {692}, {696}, {704}, {716}, {728}, {752}, {768}, {780}, {792}, {816}, {820}, {824}, {832}, {844}, {856}, {864}, {880}, {888}, {896}, {908}, {920}, {960}, {972}, {984}, {1024}, {1036}, {1048}, {1088}, {1100}, {1112}, {1152}, {1164}, {1176}, {1216}, {1228}, {1240}, {1280}, {1292}, {1304}, {1344}};
 unsigned int next_button = 0;
 pulse pulses[5];
 unsigned char next_pulse = 0;
@@ -89,7 +89,7 @@ vector3 v30 = {0, 0, 0};
 void project(){
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(55, ar, 0.2, 16 * dim);
+	gluPerspective(55, ar, 0.5, dim);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
@@ -566,7 +566,7 @@ void handle_keypress(){
 void init(){
 	// Create the path and store it so we don't have to calculate it every frame
 	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
-		vector3 next = {i * 50, 0, 0};
+		vector3 next = {i * 50, 2 * cos(i), 5 * sin(i)};
 		knots[i] = next;
 	}
 	interpolate_points(knots);
@@ -582,7 +582,7 @@ void init(){
 	running = 1;
 
 	SDL_Init(SDL_INIT_VIDEO);
-	screen = SDL_SetVideoMode(1024, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
+	screen = SDL_SetVideoMode(1800, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
 	if(!screen){
 		throw_error("Failed to set video mode\n");
 	}
