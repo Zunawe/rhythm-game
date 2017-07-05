@@ -6,7 +6,7 @@
 #define NUM_INTERPOLATED_STEPS 64
 #define NUM_KNOTS 100
 #define NUM_BARRIERS 64
-#define NUM_BUTTONS 0
+#define NUM_BUTTONS 100
 
 #define cos_deg(t) cos((t) * PI / 180)
 #define sin_deg(t) sin((t) * PI / 180)
@@ -51,10 +51,9 @@ unsigned int keypress_period = 5000; // milliseconds
 vector3 knots[NUM_KNOTS];
 vector3 path_points[(NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS][3];
 unsigned int current_camera_step = 0;
-barrier barriers[NUM_BARRIERS];// = {{16 + 2, 0}, {40 + 2, 0}, {64 + 2}};
+barrier barriers[NUM_BARRIERS] = {{164, 0}, {168, 0}, {172, 0}, {176, 0}, {180, 0}, {184, 0}, {188, 0}};
 unsigned int next_barrier = 0;
-button buttons[NUM_BUTTONS] = {};
-//button buttons[NUM_BUTTONS] = {{50, 0}, {67, 0}, {86, 0}, {140, 0}, {158, 0}, {176, 0}};
+button buttons[NUM_BUTTONS] = {{0, 0}, {12, 0}, {24, 0}, {64, 0}, {76, 0}, {88, 0}, {128, 0}, {140, 0}, {152, 0}};
 unsigned int next_button = 0;
 pulse pulses[5];
 unsigned char next_pulse = 0;
@@ -76,6 +75,8 @@ MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
                                      128.0};
 
 Mix_Music *music;
+Mix_Chunk *boom;
+Mix_Chunk *clap;
 
 unsigned int car_camera_step = 2;
 
@@ -269,6 +270,7 @@ void check_interaction(){
 	if(current_camera_step + car_camera_step == barriers[next_barrier].step && car_down){
 	   	pulses[next_pulse] = generate_pulse(path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
 		barriers[next_barrier++].broken = 1;
+		Mix_PlayChannel(-1, clap, 0);
 		next_pulse = (next_pulse + 1) % 5;
 	}
 	if(current_camera_step + car_camera_step < buttons[next_button].step + 2 &&
@@ -276,6 +278,7 @@ void check_interaction(){
 	   hit){
 	   	pulses[next_pulse] = generate_pulse(path_points[buttons[next_button].step][2], 0.5, 0.0, 0.0, 1.0);
 		buttons[next_button++].pressed = 1;
+		Mix_PlayChannel(-1, boom, 0);
 		next_pulse = (next_pulse + 1) % 5;
 	}
 
@@ -569,9 +572,11 @@ void init(){
 	interpolate_points(knots);
 	current_camera_step = 0;
 
+	for(unsigned int i = 0; i < NUM_BUTTONS; ++i){
+		buttons[i].step += 16;
+	}
 	for(unsigned int i = 0; i < NUM_BARRIERS; ++i){
-		barrier next = {i * 16 + car_camera_step, 0};
-		barriers[i] = next;
+		barriers[i].step += 16;
 	}
 
 	running = 1;
@@ -587,12 +592,18 @@ void init(){
 	if(Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 4096)){
 		throw_error("Cannot initialize audio\n");
 	}
+
 	music = Mix_LoadMUS("brothers_in_arms.mp3");
 	if(!music){
-		throw_error("Cannot load music");
+		throw_error("Cannot load music\n");
 	}
-	if(Mix_PlayMusic(music, 1)){
-		throw_error("Cannot play music\n");
+	clap = Mix_LoadWAV("clap.wav");
+	if(!clap){
+		throw_error("Cannot load clap\n");
+	}
+	boom = Mix_LoadWAV("boom.wav");
+	if(!boom){
+		throw_error("Cannot load boom\n");
 	}
 
 	glMatrixMode(GL_PROJECTION);
@@ -615,7 +626,11 @@ void main_loop(void (*display)(void)){
 	double t = 0;
 	double dt = 0;
 	double key_timer = 0;
-	double move_timer = 950;
+
+	if(Mix_PlayMusic(music, 1)){
+		throw_error("Cannot play music\n");
+	}
+	double move_timer = 960;
 
 	while(running){
 		dt = t;
