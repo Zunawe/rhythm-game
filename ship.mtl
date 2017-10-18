@@ -1,7 +1,7 @@
 # Blender MTL File: 'Ship.blend'
 # Material Count: 2
 
-newmtl Car
+newmtl car
 Ns 96.078431
 Ka 0.100000 0.100000 0.100000
 Kd 0.050000 0.050000 0.050000
@@ -11,7 +11,7 @@ Ni 1.000000
 d 1.000000
 illum 2
 
-newmtl Car_Glow
+newmtl car_glow
 Ns 96.078431
 Ka 0.000000 0.000000 0.000000
 Kd 0.000000 0.001615 0.147576

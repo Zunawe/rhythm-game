@@ -2,13 +2,13 @@ EXE = project
 
 ifeq "$(OS)" "Windows_NT"
 # Windows
-SDL_LIBS = $(shell sdl-config --libs)
+SDL_LIBS = $(shell sdl-config --libs) -lSDL_mixer
 SDL_CFLAGS = $(shell sdl-config --cflags)
 CLEAN = del *.o *.exe
 else
 ifeq "$(shell uname)" "Darwin"
 # OS X
-SDL_LIBS = $(shell sdl-config --libs)
+SDL_LIBS = $(shell sdl-config --libs) -lSDL_mixer
 SDL_CFLAGS = $(shell sdl-config --cflags)
 CLEAN = rm -f *.o $(EXE)
 else
@@ -43,4 +43,4 @@ clean:
 	$(CLEAN)
 
 zip:
-	zip project.zip *.c *.h *.obj *.mtl Makefile README
+	zip project.zip *.c *.h *.obj *.mtl *.wav *.mp3 Makefile README

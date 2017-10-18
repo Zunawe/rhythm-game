@@ -1,16 +1,22 @@
 CSCI 4229 - Project
 Bryce Wilson
 
+Plays music
+May be loud
+
 Controls:
-	Space:					Toggle God View
-	Arrow Keys:				Move Camera (God View only)
-	Esc:					Close Program
+	Space:			Control Ship
+	Esc:			Close Program
 
 
-I am definitely on a slow start because I haven't had time to work during the week with my job. The pace will pick up starting Friday (today). I'm abandoning the idea of a procedurally generated track, and instead I'll just make one custom for a particular song.
+Pressing space will bring the ship down onto the track. You should press space over blue buttons, and you should hold space through orange barriers.
 
-To convey speed better, there will be scenery objects close to the track and maybe some sort of overlay on the screen for "speed lines". The obstacles/targets will play a simple animation and sound when interacted with at the right time.
+Essentially this is a simple demo for something that could be built on later. I only designed about a minute of the track because it takes a lot of time that I needed to spend on the graphics. Also, apologies for the difficulty; accomodating for that also wasn't a focus.
 
-I've got a basic obj for the car that will be riding the track, but I'm still working on getting it to load. The track itself should eventually be saved to a list since it's so long. The algorithm that generates the path was something I made before the lecture about Bezier curves and splines; I might update it to that so I have more control over where it goes.
+The track, though relatively simple, uses a natural cubic spline, so it could easily be adapted for something more roller-coaster like, or with sharper turns. Most of my work went into drawing the track and getting the various objects to follow it and place themselves on it. In retrospect, it may have been better to keep the car on the origin and facing up, and then rotating the world? I'm not quite sure, but there was a lot of calculating the normal of the track and making sure things get pointed the right direction. I'm actually slightly surprised at how smooth it can still run given how much vector math I did on the CPU.
 
-There will be some emission lighting on obstacles/scenery/car as well as some actual lighting around where the camera is (maybe some scenery too). If I get it looking nice enough, I'll go add a particle engine or an interesting shader.
+As is probably obvious, I tried to play around with emission a lot more than we've done in class. It gives a nice glow that fits a certain aesthetic. The translucent objects use only emission so they look more ethereal. The flame behind the car also contains an actual light object that emits blue light which can be most easily seen on the black car (the track has too few polygons to pick it up well). It also expands and contracts with a glScale based on the progression of the car.
+
+I think the pulses are pretty cool. I have a function that makes one with a relative size and a color. Then the timer decreases that color to black linearly over time as well as expanding the radius linearly over time, so it looks like it comes from a source and then fades outward.
+
+The music isn't tied to the speed of movement; I had to calculate all that based on the tempo of the music (which is fortunately very consistent) and the spacing I wanted for the segments. It was surprisingly hard to keep the speed, space, and music tempo in sync while playing with one of those values.

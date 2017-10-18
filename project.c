@@ -5,11 +5,13 @@
 
 #define NUM_INTERPOLATED_STEPS 64
 #define NUM_KNOTS 120
-#define NUM_BARRIERS 100
-#define NUM_BUTTONS 100
+#define NUM_BARRIERS 82
+#define NUM_BUTTONS 84
+#define NUM_THINGS 10
 
 #define cos_deg(t) cos((t) * PI / 180)
 #define sin_deg(t) sin((t) * PI / 180)
+
 
 typedef struct{
 	unsigned int step;
@@ -30,9 +32,9 @@ typedef struct{
 } pulse;
 
 
+// General Program
 SDL_Surface *screen;
 char running;
-char drawing_transparency = 0;
 
 char car_down = 0;
 char hit = 0;
@@ -40,56 +42,56 @@ double hit_timer = 0;
 
 // Perspective Projection Variables
 double ar = 1.0;
-double dim = 50.0;
-double th = 0.01;
-double ph = 0.01;
 
-// Number of milliseconds before the key is considered pressed again
-unsigned int keypress_period = 5000; // milliseconds
-
-// path_points is a list of 3D vectors that define the course
+// Locations for drawing objects
 vector3 knots[NUM_KNOTS];
 vector3 path_points[(NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS][3];
 unsigned int current_camera_step = 0;
+unsigned int car_camera_step = 2;
 barrier barriers[NUM_BARRIERS] = {{164}, {168}, {172}, {176}, {180}, {184}, {188}, {292}, {296}, {300}, {304}, {308}, {312}, {316}, {356}, {360}, {484}, {488}, {632}, {635}, {638}, {760}, {763}, {766}, {868}, {872}, {928}, {932}, {936}, {940}, {948}, {956}, {992}, {996}, {1000}, {1004}, {1012}, {1020}, {1120}, {1122}, {1124}, {1126}, {1128}, {1136}, {1138}, {1140}, {1142}, {1144}, {1184}, {1186}, {1188}, {1190}, {1192}, {1200}, {1202}, {1204}, {1206}, {1208}, {1210}, {1212}, {1214}, {1248}, {1250}, {1252}, {1254}, {1256}, {1264}, {1266}, {1268}, {1270}, {1272}, {1312}, {1314}, {1316}, {1318}, {1320}, {1328}, {1331}, {1334}, {1336}, {1339}, {1342}};
 unsigned int next_barrier = 0;
 button buttons[NUM_BUTTONS] = {{0}, {12}, {24}, {64}, {76}, {88}, {128}, {140}, {152}, {192}, {204}, {216}, {256}, {268}, {280}, {320}, {332}, {344}, {352}, {368}, {376}, {384}, {396}, {408}, {448}, {460}, {472}, {480}, {496}, {504}, {512}, {524}, {536}, {560}, {564}, {568}, {576}, {588}, {600}, {624}, {640}, {652}, {664}, {688}, {692}, {696}, {704}, {716}, {728}, {752}, {768}, {780}, {792}, {816}, {820}, {824}, {832}, {844}, {856}, {864}, {880}, {888}, {896}, {908}, {920}, {960}, {972}, {984}, {1024}, {1036}, {1048}, {1088}, {1100}, {1112}, {1152}, {1164}, {1176}, {1216}, {1228}, {1240}, {1280}, {1292}, {1304}, {1344}};
 unsigned int next_button = 0;
 pulse pulses[5];
 unsigned char next_pulse = 0;
+vector3 things[] = {{50, -15, 30}, {200, -40, 0}, {300, -10, 20}, {500, 0, -10}, {620, 10, 0}, {700, -20, -40}, {730, 50, 30}, {800, -20, 8}, {900, -30, -25}, {1100, -40, 2}};
 
+// Call lists
 int ship_list;
+int trail_list;
 int barrier_list;
 int button_list;
+int thing_list;
 
+// Materials
 MaterialProperties default_material = {{0.2, 0.2, 0.2, 1.0},
                                      {0.8, 0.8, 0.8, 1.0},
                                      {0.0, 0.0, 0.0, 1.0},
                                      {0.0, 0.0, 0.0, 1.0},
                                      0.0};
-
 MaterialProperties track_material = {{0.1, 0.1, 0.1, 1.0},
                                      {0.2, 0.2, 0.2, 1.0},
-                                     {1.0, 1.0, 1.0, 1.0},
+                                     {0.6, 0.6, 0.6, 1.0},
                                      {0.0, 0.0, 0.0, 1.0},
-                                     128.0};
+                                     32.0};
 
+// Sounds
 Mix_Music *music;
 Mix_Chunk *boom;
 Mix_Chunk *clap;
 
-unsigned int car_camera_step = 2;
-
+// Useful vectors
 vector3 v3x = {1, 0, 0};
 vector3 v3y = {0, 1, 0};
 vector3 v3z = {0, 0, 1};
 vector3 v30 = {0, 0, 0};
 
+
 // Set the projection matrix
 void project(){
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(55, ar, 0.5, dim);
+	gluPerspective(55, ar, 0.5, 200);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
@@ -101,15 +103,9 @@ void reshape(int width, int height){
 	project();
 }
 
-void draw_axes(){
-	glBegin(GL_LINES);
-	glVertex3d(0, 0, 0);
-	glVertex3d(dim / 2, 0, 0);
-	glVertex3d(0, 0, 0);
-	glVertex3d(0, dim / 2, 0);
-	glVertex3d(0, 0, 0);
-	glVertex3d(0, 0, dim / 2);
-	glEnd();
+void circle_vertex(double x, double y, double z){
+	glNormal3d(x, y, z);
+	glVertex3d(x, y, z);
 }
 
 void draw_torus(double R, double r){
@@ -127,14 +123,9 @@ void draw_torus(double R, double r){
 	glPopMatrix();
 }
 
-void circle_vertex(double x, double y, double z){
-	glNormal3d(x, y, z);
-	glVertex3d(x, y, z);
-}
-
 void draw_sphere(){
-	int dt = 1;
-	int dp = 1;
+	int dt = 15;
+	int dp = 15;
 
 	glPushMatrix();
 	for(unsigned int p = 0; p < 180; p += dp){
@@ -148,6 +139,8 @@ void draw_sphere(){
 	glPopMatrix();
 }
 
+// Cubic spline algorithm from Wikipedia
+// Output is stored in array S
 // S is the coefficients for the spline
 // S[j](x) = S[0] + S[1](x - S[4]) + S[2](x - S[4])^2 + S[3](x - S[4])^3
 void cubic_spline(double x[NUM_KNOTS][2], double S[NUM_KNOTS - 1][5]){
@@ -197,15 +190,19 @@ void cubic_spline(double x[NUM_KNOTS][2], double S[NUM_KNOTS - 1][5]){
 	}
 }
 
+// Find a point on the given spline
 double interpolate_point(double x, double cs[5]){
 	return cs[0] + (cs[1] * (x - cs[4])) + (cs[2] * pow(x - cs[4], 2.0)) + (cs[3] * pow(x - cs[4], 3.0));
 }
 
+// Find the derivative at a point on a given spline
 double spline_tangent_slope(double x, double cs[5]){
 	return cs[1] + (2 * cs[2] * (x - cs[4])) + (3 * cs[3] * pow(x - cs[4], 2.0));
 }
 
+// Use knots to draw a smooth curve using cubic_spline
 void interpolate_points(vector3 knots[NUM_KNOTS]){
+	// We'll just use 1 spline for each dimension
 	double x[NUM_KNOTS][2];
 	double Sx[NUM_KNOTS - 1][5];
 	double y[NUM_KNOTS][2];
@@ -213,6 +210,7 @@ void interpolate_points(vector3 knots[NUM_KNOTS]){
 	double z[NUM_KNOTS][2];
 	double Sz[NUM_KNOTS - 1][5];
 
+	// Each point is at a non-negative integer t for x(t), y(t), and z(t)
 	for(unsigned int i = 0; i < NUM_KNOTS; ++i){
 		x[i][0] = i;
 		y[i][0] = i;
@@ -227,6 +225,9 @@ void interpolate_points(vector3 knots[NUM_KNOTS]){
 	cubic_spline(y, Sy);
 	cubic_spline(z, Sz);
 
+	// Finds NUM_INTERPOLATED_STEPS points between two knots
+	// NOTE: if NUM_INTERPOLATED_STEPS isn't divisible by 2,
+	// the end of the spline may not be drawn, leading to jaggedness
 	double t_step = 1.0 / NUM_INTERPOLATED_STEPS;
 	unsigned int next_point = 0;
 	for(unsigned int i = 0; i < NUM_KNOTS - 1; ++i){
@@ -250,6 +251,7 @@ void interpolate_points(vector3 knots[NUM_KNOTS]){
 	}
 }
 
+// Initializes a pulse
 pulse generate_pulse(vector3 up, double size, double r, double g, double b){
 	MaterialProperties material = {{0.0, 0.0, 0.0, 1.0},
 	                               {0.0, 0.0, 0.0, 1.0},
@@ -266,13 +268,16 @@ pulse generate_pulse(vector3 up, double size, double r, double g, double b){
 	return new_pulse;
 }
 
+// Deal with hitting obstacles
 void check_interaction(){
+	// Break Barrier
 	if(current_camera_step + car_camera_step == barriers[next_barrier].step && car_down){
 	   	pulses[next_pulse] = generate_pulse(path_points[barriers[next_barrier].step][2], 0.1, 1.0, 0.5, 0.0);
 		barriers[next_barrier++].broken = 1;
 		Mix_PlayChannel(-1, clap, 0);
 		next_pulse = (next_pulse + 1) % 5;
 	}
+	// Press Button
 	if(current_camera_step + car_camera_step < buttons[next_button].step + 2 &&
 	   current_camera_step + car_camera_step > buttons[next_button].step - 2 &&
 	   hit){
@@ -283,6 +288,7 @@ void check_interaction(){
 	}
 
 
+	// If passed over something, look at the next one
 	if(current_camera_step + 2 > barriers[next_barrier].step){
 		++next_barrier;
 	}
@@ -291,6 +297,8 @@ void check_interaction(){
 	}
 }
 
+// Rotates the x axis to point to the given vector
+// First rotates around the y-axis, and then rotates up or down
 // Assumes positive y-axis is up always
 void rotate_x_to(vector3 v){
 	v = v3normalize(v);
@@ -310,36 +318,27 @@ void display(){
 
 	glLoadIdentity();
 
-	if(1){
-		gluLookAt(path_points[current_camera_step][0].x + (0.3 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.3 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.3 * path_points[current_camera_step][2].z),
-			      path_points[current_camera_step + 8][0].x, path_points[current_camera_step + 8][0].y, path_points[current_camera_step + 8][0].z,
-			      0, 1, 0);
-	}
-	else{
-		gluLookAt(-dim * sin_deg(th) * cos_deg(ph), dim * sin_deg(ph), dim * cos_deg(th) * cos_deg(ph),
-		      0, 0, 0,
-		      0, cos_deg(ph), 0);
-	}
+	gluLookAt(path_points[current_camera_step][0].x + (0.5 * path_points[current_camera_step][2].x), path_points[current_camera_step][0].y + (0.5 * path_points[current_camera_step][2].y), path_points[current_camera_step][0].z + (0.5 * path_points[current_camera_step][2].z),
+	          path_points[current_camera_step + 8][0].x, path_points[current_camera_step + 8][0].y, path_points[current_camera_step + 8][0].z,
+	          0, 1, 0);
 
 	// Lighting
-	if(1){
-		float ambient[]  = {0.2, 0.2, 0.2, 1.0};
-		float diffuse[]  = {0.5, 0.5, 0.5, 1.0};
-		float specular[] = {0.5, 0.5, 0.5, 1.0};
-		float position[] = {path_points[current_camera_step][0].x + path_points[current_camera_step][2].x, path_points[current_camera_step][0].y + path_points[current_camera_step][2].y, path_points[current_camera_step][0].z + path_points[current_camera_step][2].z, 1.0};
+	float ambient[]  = {0.1, 0.1, 0.1, 1.0};
+	float diffuse[]  = {0.5, 0.5, 0.5, 1.0};
+	float specular[] = {0.5, 0.5, 0.5, 1.0};
+	float position[] = {path_points[current_camera_step + car_camera_step][0].x + (0.8 * path_points[current_camera_step + car_camera_step][2].x),
+		                path_points[current_camera_step + car_camera_step][0].y + (0.8 * path_points[current_camera_step + car_camera_step][2].y),
+		                0.5 * (path_points[current_camera_step + car_camera_step][0].z + (0.8 * path_points[current_camera_step + car_camera_step][2].z)), 1.0};
 
-		glEnable(GL_NORMALIZE);
-		glEnable(GL_LIGHTING);
-		glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
-		glEnable(GL_LIGHT0);
+	glEnable(GL_NORMALIZE);
+	glEnable(GL_LIGHTING);
+	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
+	glEnable(GL_LIGHT0);
 
-		glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-		glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-		glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-		glLightfv(GL_LIGHT0, GL_POSITION, position);
-	}
-
-	check_interaction();
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
 
 	// Draw Objects
 	glColor3d(1, 1, 1);
@@ -390,6 +389,15 @@ void display(){
 		glPopMatrix();
 	}
 
+	// Things
+	for(unsigned int i = 0; i < NUM_THINGS; ++i){
+		glPushMatrix();
+		glTranslated(things[i].x, things[i].y, things[i].z);
+		glScaled(10, 10, 10);
+		glCallList(thing_list);
+		glPopMatrix();
+	}
+
 	// Ship
 	glPushMatrix();
 	vector3 car_pos = path_points[current_camera_step + car_camera_step][0];
@@ -397,13 +405,13 @@ void display(){
 		car_pos = v3sum(car_pos, v3scale(path_points[current_camera_step + car_camera_step][2], 0.01));
 	}
 	glTranslated(car_pos.x, car_pos.y, car_pos.z);
-	glScaled(0.1, 0.1, 0.1);
+	glScaled(0.2, 0.2, 0.2);
 	rotate_x_to(path_points[current_camera_step + car_camera_step][1]);
 	glCallList(ship_list);
 	glPopMatrix();
 
 
-	// Transparent Objects
+	// Tranlucent Objects
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 	glDepthMask(0);
@@ -423,6 +431,27 @@ void display(){
 		glPopMatrix();
 	}
 
+	// Trail
+	glPushMatrix();
+	vector3 trail_pos = v3sum(v3sum(car_pos, v3scale(path_points[current_camera_step + car_camera_step][1], -0.35)), v3scale(path_points[current_camera_step + car_camera_step][2], 0.076));
+	glTranslated(trail_pos.x, trail_pos.y, trail_pos.z);
+	rotate_x_to(v3diff(trail_pos, car_pos));
+	glScaled(0.1 * sin_deg(current_camera_step * 80) + 0.2, 0.08, 0.08);
+	glCallList(trail_list);
+	glPopMatrix();
+
+	float tail_ambient[] = {0.0, 0.0, 0.0, 1.0};
+	float tail_diffuse[] = {0.0, 0.0, 0.1, 1.0};
+	float tail_specular[] = {0.0, 0.0, 0.8, 1.0};
+	float tail_position[] = {trail_pos.x, trail_pos.y, trail_pos.z, 1.0};
+
+	glEnable(GL_LIGHT1);
+
+	glLightfv(GL_LIGHT1, GL_AMBIENT, tail_ambient);
+	glLightfv(GL_LIGHT1, GL_DIFFUSE, tail_diffuse);
+	glLightfv(GL_LIGHT1, GL_SPECULAR, tail_specular);
+	glLightfv(GL_LIGHT1, GL_POSITION, tail_position);
+
 	glDisable(GL_BLEND);
 	glDepthMask(1);
 
@@ -430,86 +459,30 @@ void display(){
 	// Unlit Objects
 	glDisable(GL_LIGHTING);
 
-	glFlush();
-	SDL_GL_SwapBuffers();
-	check_error_at("Display");
-}
-
-void test_display(){
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glLoadIdentity();
-
-	gluLookAt(-dim * sin_deg(th) * cos_deg(ph), dim * sin_deg(ph), dim * cos_deg(th) * cos_deg(ph),
-		      0, 0, 0,
-		      0, cos_deg(ph), 0);
-
-	
-	float ambient[]  = {0.0, 0.0, 0.0, 1.0};
-	float diffuse[]  = {0.8, 0.8, 0.8, 1.0};
-	float specular[] = {0.5, 0.5, 0.5, 1.0};
-	float position[] = {7.0, 7.0, 7.0, 1.0};
-
-	glEnable(GL_NORMALIZE);
-	glEnable(GL_LIGHTING);
-	glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, 0);
-	glEnable(GL_LIGHT0);
-
-	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
-	glLightfv(GL_LIGHT0, GL_POSITION, position);
-
-	// Opaque Objects
-	set_material_properties(default_material);
-
-	for(unsigned int i = 0; i < 5; ++i){
-		pulse p = pulses[i];
-		if(p.lifetime <= 0.0){
-			continue;
-		}
-		set_material_properties(p.material);
-		glPushMatrix();
-		draw_torus(20, 5);
-		glPopMatrix();
-	}
-
-
-	// Transparent Objects
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA,GL_ONE);
-	glDepthMask(0);
-	// here
-	glDisable(GL_BLEND);
-	glDepthMask(1);
-
-	// Objects without Lighting
-	glDisable(GL_LIGHTING);
-	glColor3d(1, 1, 1);
-	draw_axes();
-
 	glPushMatrix();
-	glScaled(5, 5, 5);
-	glBegin(GL_LINE_STRIP);
-	for(unsigned int i = 0; i < (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS; ++i){
-		glVertex3d(path_points[i][0].x, path_points[i][0].y, path_points[i][0].z);
-	}
-	glEnd();
-
-	glTranslatef(position[0], position[1], position[2]);
+	glTranslated(path_points[current_camera_step + car_camera_step][0].x + (0.8 * path_points[current_camera_step + car_camera_step][2].x),
+			     path_points[current_camera_step + car_camera_step][0].y + (0.8 * path_points[current_camera_step + car_camera_step][2].y),
+			     0.5 * (path_points[current_camera_step + car_camera_step][0].z + (0.8 * path_points[current_camera_step + car_camera_step][2].z)));
+	glScaled(0.01, 0.01, 0.01);
 	draw_sphere();
 	glPopMatrix();
 
 	glFlush();
 	SDL_GL_SwapBuffers();
-
-	check_error_at("Test Display");
+	check_error_at("Display");
 }
 
 // Called every 48.875 ms
+// Incrementing the car's position every 48.875 ms makes the math easy
+// for finding positions at 160 BPM (the speed of this song)
 void timer(){
 	// Move the camera
 	++current_camera_step;
+	if(current_camera_step >= (NUM_KNOTS - 1) * NUM_INTERPOLATED_STEPS - 20){
+		running = 0;
+	}
+
+	// Grow pulses and dim their color
 	for(unsigned int i = 0; i < 5; ++i){
 		pulses[i].lifetime -= 20;
 		pulses[i].R += 0.1;
@@ -529,18 +502,9 @@ void handle_keypress(){
 	if(keys[SDLK_ESCAPE]){
 		running = 0;
 	}
-	if(keys[SDLK_UP]){
-		ph += 5;
-	}
-	if(keys[SDLK_DOWN]){
-		ph -= 5;
-	}
-	if(keys[SDLK_LEFT]){
-		th += 5;
-	}
-	if(keys[SDLK_RIGHT]){
-		th -= 5;
-	}
+	// hit will make sure buttons are only pressed if you press space on them
+	// and not when you hold space through them.
+	// hit_timer prevents the player from spamming space to hit everything
 	if(keys[SDLK_SPACE]){
 		if(hit_timer <= 0){
 			if(!car_down){
@@ -557,9 +521,6 @@ void handle_keypress(){
 		car_down = 0;
 	}
 
-	th = fmod(th, 360.0);
-	ph = ph > 90 ? 89.9 : ph;
-	ph = ph < -90 ? -89.9 : ph;
 	project();
 }
 
@@ -572,6 +533,7 @@ void init(){
 	interpolate_points(knots);
 	current_camera_step = 0;
 
+	// There are two beats of rest before hitting the first sound
 	for(unsigned int i = 0; i < NUM_BUTTONS; ++i){
 		buttons[i].step += 16;
 	}
@@ -579,8 +541,10 @@ void init(){
 		barriers[i].step += 16;
 	}
 
+	// Set program to running
 	running = 1;
 
+	// Initialize window with SDL
 	SDL_Init(SDL_INIT_VIDEO);
 	screen = SDL_SetVideoMode(1800, 1024, 0, SDL_OPENGL | SDL_RESIZABLE | SDL_DOUBLEBUF);
 	if(!screen){
@@ -588,11 +552,11 @@ void init(){
 	}
 	SDL_WM_SetCaption("Bryce Wilson", "Bryce Wilson");
 
+	// Initialize music and sound effects
 	Mix_Init(MIX_INIT_MP3);
 	if(Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 4096)){
 		throw_error("Cannot initialize audio\n");
 	}
-
 	music = Mix_LoadMUS("brothers_in_arms.mp3");
 	if(!music){
 		throw_error("Cannot load music\n");
@@ -606,30 +570,36 @@ void init(){
 		throw_error("Cannot load boom\n");
 	}
 
+	// Load identities and draw a blank screen
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
+	glClearColor(0.01, 0.01, 0.02, 1.0);
 	reshape(screen->w, screen->h);
 
+	// Load objects
 	ship_list = load_obj("ship.obj");
+	trail_list = load_obj("trail.obj");
 	barrier_list = load_obj("barrier.obj");
 	button_list = load_obj("button.obj");
+	thing_list = load_obj("thing.obj");
 	
 	check_error_at("Init");
 }
 
 void main_loop(void (*display)(void)){
 	// Timers
-	double t = 0;
-	double dt = 0;
-	double key_timer = 0;
+	double t = 0;			// Global timer
+	double dt = 0;			// Change in time since last iteration
+	double key_timer = 0;	// Time since key press last handled
 
 	if(Mix_PlayMusic(music, 1)){
 		throw_error("Cannot play music\n");
 	}
+	// Accounts for the delay in the music file's start
 	double move_timer = 960;
 
 	while(running){
@@ -638,6 +608,8 @@ void main_loop(void (*display)(void)){
 		dt = t - dt;
 
 		hit_timer -= dt;
+
+		check_interaction();
 
 		SDL_Event event;
 		while(SDL_PollEvent(&event)){
@@ -656,11 +628,13 @@ void main_loop(void (*display)(void)){
 			}
 		}
 
+		// Handles key events every 5 milliseconds minimum (usually longer)
 		if(t > key_timer + 5){
 			handle_keypress();
 			key_timer = t + 5;
 		}
 
+		// Moves the car forward at a rate that makes math easy at 160 bpm
 		if(t > move_timer){
 			timer();
 			move_timer += 46.875;
