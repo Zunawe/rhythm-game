@@ -1,8 +1,7 @@
 CSCI 4229 - Project
 Bryce Wilson
 
-Plays music
-May be loud
+This program uses OpenGL 2 and requires SDL 1.2.
 
 Controls:
 	Space:			Control Ship
